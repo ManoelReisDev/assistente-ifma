@@ -2,7 +2,7 @@
 
 ## 1. Metadados
 
-- **Estado:** Planejada
+- **Estado:** Concluída
 - **Dependências:** Nenhuma
 - **Entrega:** Projeto Python instalável, com CLI básica, configuração de caminhos e testes locais.
 
@@ -83,14 +83,16 @@ Verificar ajuda e versão por execução da CLI, incluindo rejeição de argumen
 
 ## 14. Definition of Done
 
-- [ ] Requisitos funcionais atendidos
-- [ ] Requisitos técnicos atendidos
-- [ ] Testes relevantes implementados e aprovados
-- [ ] Instalação do pacote e execução da CLI verificadas em ambiente virtual
-- [ ] Nenhum item fora do escopo implementado
-- [ ] Documentação afetada atualizada
+- [x] Requisitos funcionais atendidos
+- [x] Requisitos técnicos atendidos
+- [x] Testes relevantes implementados e aprovados pelo pytest
+- [x] Instalação do pacote e execução da CLI verificadas em ambiente virtual
+- [x] Nenhum item fora do escopo implementado
+- [x] Documentação afetada atualizada
 
 O item de build Maven do template foi adaptado à verificação de instalação do projeto Python.
+
+Validação concluída durante a SPEC-003: pacote instalado, imports reais aprovados, cinco testes aprovados pelo pytest e CLI verificada com ajuda, versão e rejeição de argumento desconhecido.
 
 ## 15. Critério de parada
 

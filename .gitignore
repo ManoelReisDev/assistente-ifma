@@ -1,0 +1,20 @@
+.env
+.env.*
+!.env.example
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.cache/
+*.egg-info/
+build/
+dist/
+
+# Dados locais e artefatos gerados
+data/documents/**
+!data/documents/.gitkeep
+data/index/**
+!data/index/.gitkeep
+
+# PDFs locais, inclusive fora da pasta padrão
+*.[pP][dD][fF]

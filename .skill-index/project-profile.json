@@ -1,0 +1,16 @@
+{
+  "languages": ["Python 3.10+"],
+  "frameworks": ["LangChain 1.x"],
+  "package_managers": ["uv"],
+  "build_tools": ["setuptools"],
+  "test_tools": ["pytest"],
+  "deployment_tools": [],
+  "important_directories": ["src/academic_assistant", "tests", "specs"],
+  "recommended_default_skills": [
+    "project-orchestrator",
+    "ecosystem-primer",
+    "langchain-dependencies"
+  ],
+  "updated_at": "2026-10-08",
+  "git_commit": null
+}
