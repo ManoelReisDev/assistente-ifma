@@ -24,6 +24,22 @@ class SettingsTests(unittest.TestCase):
 
                 self.assertEqual(settings.documents_dir, Path("data/documents"))
                 self.assertEqual(settings.index_dir, Path("data/index"))
+                self.assertEqual(settings.corpus_file, Path("evaluation/corpus.local.json"))
+                self.assertEqual(settings.chunk_size, 1_000)
+                self.assertEqual(settings.chunk_overlap, 200)
+                self.assertEqual(settings.embedding_provider, "nvidia")
+                self.assertEqual(settings.embedding_model, "nvidia/nemotron-3-embed-1b")
+                self.assertEqual(settings.embedding_dimensions, 2_048)
+                self.assertEqual(settings.retrieval_k, 4)
+                self.assertEqual(settings.retrieval_page_window, 1)
+                self.assertEqual(settings.retrieval_max_chunks, 12)
+                self.assertEqual(settings.llm_provider, "nvidia")
+                self.assertEqual(
+                    settings.llm_model, "nvidia/nemotron-3-super-120b-a12b"
+                )
+                self.assertEqual(settings.llm_temperature, 1.0)
+                self.assertEqual(settings.llm_top_p, 0.95)
+                self.assertEqual(settings.llm_max_tokens, 1_024)
                 self.assertFalse(Path("data").exists())
             finally:
                 os.chdir(previous_directory)
@@ -36,6 +52,30 @@ class SettingsTests(unittest.TestCase):
 
         self.assertEqual(settings.documents_dir, Path("regulations"))
         self.assertEqual(settings.index_dir, Path("local-index"))
+
+    def test_settings_reject_invalid_chunk_limits(self) -> None:
+        for values in (
+            {"chunk_size": 0},
+            {"chunk_overlap": -1},
+            {"chunk_size": 100, "chunk_overlap": 100},
+            {"chunk_size": 100, "chunk_overlap": 101},
+            {"embedding_dimensions": 0},
+            {"embedding_model": ""},
+            {"embedding_provider": " "},
+            {"collection_name": ""},
+            {"retrieval_k": 0},
+            {"retrieval_page_window": -1},
+            {"retrieval_k": 5, "retrieval_max_chunks": 4},
+            {"llm_temperature": -0.1},
+            {"llm_temperature": 2.1},
+            {"llm_top_p": -0.1},
+            {"llm_top_p": 1.1},
+            {"llm_max_tokens": 0},
+            {"llm_provider": ""},
+            {"llm_model": " "},
+        ):
+            with self.subTest(values=values), self.assertRaises(ValueError):
+                Settings(**values)
 
 
 class CliTests(unittest.TestCase):

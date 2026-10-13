@@ -16,5 +16,8 @@ data/documents/**
 data/index/**
 !data/index/.gitkeep
 
+# Avaliação local baseada em documentos não versionados
+evaluation/*.local.json
+
 # PDFs locais, inclusive fora da pasta padrão
 *.[pP][dD][fF]
