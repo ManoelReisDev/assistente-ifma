@@ -2,6 +2,8 @@
 
 Aplicação em Python e LangChain para consultar documentos acadêmicos com recuperação rastreável. As entregas atuais incluem ingestão por página, divisão em trechos, índice Chroma persistente e recuperação de evidências com filtros de aplicabilidade.
 
+Para uma visão geral não técnica da arquitetura, do funcionamento, das limitações e do valor do projeto, consulte o [Relatório geral](RELATORIO-GERAL.md).
+
 ## Requisitos
 
 - [`uv`](https://docs.astral.sh/uv/getting-started/installation/) 0.12 ou superior
@@ -52,7 +54,6 @@ assistente-ifma/
 ├── .gitignore
 ├── .env.example               # nome da credencial necessária, sem segredo real
 ├── evaluation/                # casos sintéticos e inventários locais ignorados
-├── .skill-index/              # perfil auxiliar do projeto
 ├── specs/                     # especificações numeradas e template
 ├── src/academic_assistant/
 │   ├── __init__.py             # metadados e versão

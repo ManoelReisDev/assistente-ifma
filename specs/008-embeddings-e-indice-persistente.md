@@ -125,7 +125,6 @@ O rollback não é automatizado nesta spec. Os diretórios anteriores não são 
 - `uv.lock`
 - `.env.example`
 - `README.md`
-- `.skill-index/project-profile.json`
 
 ## 12. Estratégia de testes
 
