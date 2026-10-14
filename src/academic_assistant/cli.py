@@ -60,6 +60,63 @@ def build_parser() -> argparse.ArgumentParser:
         "--corpus-file", type=Path, default=Settings().corpus_file,
         help="Inventário do corpus (padrão: evaluation/corpus.local.json).",
     )
+    evaluate = commands.add_parser(
+        "evaluate", help="Executar a avaliação real separada dos testes."
+    )
+    evaluate.add_argument(
+        "--real-cases", type=Path, default=Path("evaluation/cases.local.json"),
+        help="Casos revisados dos documentos locais.",
+    )
+    evaluate.add_argument(
+        "--synthetic-cases", type=Path, default=Path("evaluation/synthetic-cases.json"),
+        help="Casos sintéticos de segurança e conflito.",
+    )
+    evaluate.add_argument(
+        "--report", type=Path, default=Path("evaluation/results.local.json"),
+        help="Relatório local, que pode conter perguntas, respostas e excertos.",
+    )
+    evaluate.add_argument(
+        "--max-provider-calls", type=int, default=40,
+        help="Limite total de chamadas de embeddings e geração (padrão: 40).",
+    )
+    evaluate.add_argument(
+        "--only-case", action="append", default=[],
+        help="Executar somente um caso; pode ser repetido.",
+    )
+    evaluate.add_argument(
+        "--documents-dir", type=Path, default=Settings().documents_dir,
+        help="Pasta de PDFs (padrão: data/documents).",
+    )
+    evaluate.add_argument(
+        "--index-dir", type=Path, default=Settings().index_dir,
+        help="Pasta do índice (padrão: data/index).",
+    )
+    evaluate.add_argument(
+        "--corpus-file", type=Path, default=Settings().corpus_file,
+        help="Inventário do corpus (padrão: evaluation/corpus.local.json).",
+    )
+    review = commands.add_parser(
+        "evaluate-review", help="Aplicar revisão humana sem repetir chamadas externas."
+    )
+    review.add_argument(
+        "--report", type=Path, default=Path("evaluation/results.local.json"),
+        help="Relatório produzido pelo comando evaluate.",
+    )
+    review.add_argument(
+        "--reviews", type=Path, default=Path("evaluation/reviews.local.json"),
+        help="Decisões humanas por caso.",
+    )
+    merge = commands.add_parser(
+        "evaluate-merge", help="Consolidar a repetição de casos que falharam."
+    )
+    merge.add_argument(
+        "--report", type=Path, default=Path("evaluation/results.local.json"),
+        help="Relatório completo que receberá os casos repetidos.",
+    )
+    merge.add_argument(
+        "--retry", type=Path, required=True,
+        help="Relatório compatível produzido com --only-case.",
+    )
     return parser
 
 
@@ -156,4 +213,64 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 1
         _print_answer(result)
         return 0
+    if args.command == "evaluate":
+        from academic_assistant.evaluation import EvaluationError, run_evaluation
+
+        settings = Settings(
+            documents_dir=args.documents_dir,
+            index_dir=args.index_dir,
+            corpus_file=args.corpus_file,
+        )
+        try:
+            report = run_evaluation(
+                settings,
+                args.real_cases,
+                args.synthetic_cases,
+                args.report,
+                max_provider_calls=args.max_provider_calls,
+                only_cases=set(args.only_case) or None,
+            )
+        except EvaluationError as error:
+            print(f"Erro de avaliação: {error}", file=sys.stderr)
+            return 1
+        metrics = report["metrics"]
+        usage = report["provider_usage"]
+        print(
+            f"Casos: {metrics['case_total']} | Concluídos: {metrics['completed_total']} | "
+            f"Erros técnicos: {metrics['technical_error_total']}"
+        )
+        print(
+            f"Chamadas: {usage['total_calls']}/{usage['max_calls']} | "
+            f"Relatório local: {args.report}"
+        )
+        return int(metrics["technical_error_total"] > 0)
+    if args.command == "evaluate-review":
+        from academic_assistant.evaluation import EvaluationError, apply_manual_reviews
+
+        try:
+            report = apply_manual_reviews(args.report, args.reviews)
+        except EvaluationError as error:
+            print(f"Erro de avaliação: {error}", file=sys.stderr)
+            return 1
+        metrics = report["metrics"]
+        print(
+            f"Revisões: {metrics['manual_review_total']}/{metrics['case_total']} | "
+            f"Suporte semântico: {metrics['semantic_support_rate']} | "
+            f"Condições preservadas: {metrics['requirements_preservation_rate']}"
+        )
+        return int(not metrics["manual_review_complete"])
+    if args.command == "evaluate-merge":
+        from academic_assistant.evaluation import EvaluationError, merge_retry_report
+
+        try:
+            report = merge_retry_report(args.report, args.retry)
+        except EvaluationError as error:
+            print(f"Erro de avaliação: {error}", file=sys.stderr)
+            return 1
+        metrics = report["metrics"]
+        print(
+            f"Casos consolidados: {metrics['completed_total']}/{metrics['case_total']} | "
+            f"Erros técnicos: {metrics['technical_error_total']}"
+        )
+        return int(metrics["technical_error_total"] > 0)
     return 0

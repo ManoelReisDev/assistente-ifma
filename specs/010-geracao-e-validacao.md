@@ -37,7 +37,7 @@ O modelo decide somente o estado, o texto e os identificadores citados. Metadado
 
 ## 6. Fora do escopo
 
-Comando `ask`, formatação terminal, histórico de conversa, repetição corretiva, segundo LLM verificador, avaliação completa do corpus real, limiar de recuperação, autenticação de usuários e interface web. A integração da consulta à CLI pertence à SPEC-011; a avaliação real completa pertence à SPEC-012.
+Comando `ask`, formatação terminal, histórico de conversa, segundo LLM verificador, avaliação completa do corpus real, limiar de recuperação, autenticação de usuários e interface web. A integração da consulta à CLI pertence à SPEC-011; a avaliação real completa e a repetição corretiva limitada acrescentada depois pertencem à SPEC-012.
 
 ## 7. Requisitos funcionais
 
@@ -49,14 +49,14 @@ Comando `ask`, formatação terminal, histórico de conversa, repetição corret
 - **RF-06:** `insufficient_evidence` não aceita referências e sempre retorna exatamente a mensagem exigida pelo AGENTS.md.
 - **RF-07:** Recuperação sem evidências retorna abstenção sem chamar o provedor.
 - **RF-08:** Saída inválida ou falha do provedor não pode ser convertida em abstenção.
-- **RF-09:** Não realizar repetição automática de correção nesta entrega.
+- **RF-09:** A entrega original não realizava repetição; após a SPEC-012, estrutura inválida ou abstenção com evidências admite somente uma tentativa adicional.
 
 ## 8. Requisitos técnicos
 
 - **RT-01:** Usar `ChatNVIDIA` de `langchain-nvidia-ai-endpoints` 1.x com `nvidia/nemotron-3-super-120b-a12b`.
 - **RT-02:** Usar o `response_format` OpenAI compatível com JSON Schema e validação Pydantic estrita, conforme suporte do endpoint hospedado.
-- **RT-03:** Configurar `temperature=1.0`, `top_p=0.95`, máximo de 1.024 tokens e `enable_thinking=False` para reservar a saída ao JSON.
-- **RT-04:** Fazer uma única chamada de geração. Não repetir nem solicitar correção do conteúdo inválido.
+- **RT-03:** Configurar `temperature=0.0`, `top_p=0.95`, máximo de 1.024 tokens e `enable_thinking=False` para reservar a saída ao JSON e reduzir variação em respostas normativas.
+- **RT-04:** Fazer uma chamada inicial e, após a alteração da SPEC-012, no máximo uma segunda chamada para correção estrutural ou revisão de abstenção.
 - **RT-05:** Usar injeção simples do modelo para testes offline.
 - **RT-06:** Não registrar pergunta, evidências, resposta ou chave por padrão.
 
@@ -69,6 +69,7 @@ Comando `ask`, formatação terminal, histórico de conversa, repetição corret
 | `status` | enum | Estado semântico da resposta |
 | `answer` | string | Texto em português sem metadados; citações são acrescentadas pela aplicação |
 | `source_ids` | lista de strings | Seleção entre IDs fornecidos |
+| `unsupported_parts` | lista de strings | Partes pedidas sem suporte; não vazia somente em resposta parcial |
 
 `AnswerResult` contém `answer`, `sources` e `status`. Cada `AnswerSource` possui `source_id`, `document_id`, `document_name`, `page_number`, `chunk_id` e `excerpt`, todos copiados da recuperação correspondente.
 
@@ -78,7 +79,7 @@ Configuração padrão:
 | --- | --- |
 | `llm_provider` | `nvidia` |
 | `llm_model` | `nvidia/nemotron-3-super-120b-a12b` |
-| `llm_temperature` | `1.0` |
+| `llm_temperature` | `0.0` |
 | `llm_top_p` | `0.95` |
 | `llm_max_tokens` | `1024` |
 
@@ -143,6 +144,7 @@ Encerrar quando evidências sintéticas puderem gerar e validar uma resposta rea
 
 - O catálogo NVIDIA confirmou `nvidia/nemotron-3-super-120b-a12b` como `chat` com suporte a saída estruturada.
 - Os testes focados foram aprovados e a suíte completa terminou com **59 testes offline aprovados**.
+- A SPEC-012 ampliou o contrato com `unsupported_parts`, `temperature=0.0`, normalização segura de abstenção e uma única tentativa adicional limitada; os resultados reais estão registrados na SPEC-012.
 - `uv lock --check --offline`, compilação de `src` e `tests` e `git diff --check` foram aprovados.
 - O primeiro smoke test real mostrou que o modelo selecionou corretamente `source_ids=["1"]`, mas não escreveu `[1]` no texto; o validador bloqueou a saída, sem exibi-la nem convertê-la em abstenção.
 - A responsabilidade de renderizar `[source_id]` foi então movida deterministicamente para a aplicação. O modelo continua selecionando apenas IDs existentes, e qualquer referência escrita por ele é rejeitada.

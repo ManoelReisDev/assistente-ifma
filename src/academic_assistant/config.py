@@ -22,7 +22,7 @@ class Settings:
     retrieval_max_chunks: int = 12
     llm_provider: str = "nvidia"
     llm_model: str = "nvidia/nemotron-3-super-120b-a12b"
-    llm_temperature: float = 1.0
+    llm_temperature: float = 0.0
     llm_top_p: float = 0.95
     llm_max_tokens: int = 1_024
 

@@ -89,7 +89,7 @@ A classe `Settings` usa estes caminhos, relativos ao diretório em que o process
 - índice: `data/index/`
 - inventário do corpus: `evaluation/corpus.local.json`
 
-Também centraliza a divisão em 1.000 caracteres com 200 de sobreposição, embeddings NVIDIA `nvidia/nemotron-3-embed-1b` com 2.048 dimensões, coleção Chroma `academic-regulations` e recuperação com quatro resultados primários, uma página de contexto para cada lado e limite total de 12 trechos. A geração usa `nvidia/nemotron-3-super-120b-a12b`, `temperature=1.0`, `top_p=0.95`, até 1.024 tokens e raciocínio desativado para a saída estruturada. Os caminhos e valores podem ser substituídos ao construir a configuração; combinações inválidas são rejeitadas.
+Também centraliza a divisão em 1.000 caracteres com 200 de sobreposição, embeddings NVIDIA `nvidia/nemotron-3-embed-1b` com 2.048 dimensões, coleção Chroma `academic-regulations` e recuperação com quatro resultados primários, uma página de contexto para cada lado e limite total de 12 trechos. A geração usa `nvidia/nemotron-3-super-120b-a12b`, `temperature=0.0`, `top_p=0.95`, até 1.024 tokens e raciocínio desativado para a saída estruturada. Os caminhos e valores podem ser substituídos ao construir a configuração; combinações inválidas são rejeitadas.
 
 ## Ingestão de PDFs
 
@@ -239,11 +239,11 @@ Na recuperação isolada do exemplo, somente a pergunta é enviada ao endpoint N
 
 A SPEC-010 usa `nvidia/nemotron-3-super-120b-a12b`, disponível no endpoint gratuito da NVIDIA e confirmado pelo catálogo como modelo de chat com saída estruturada. O modelo recebe a pergunta, o contexto, as limitações e os trechos recuperados. Portanto, a geração real envia esse conteúdo ao provedor externo; não a execute com dados privados sem autorização institucional e análise das regras aplicáveis.
 
-O prompt delimita pergunta e evidências em JSON e declara o conteúdo recuperado como dado não confiável. O modelo escolhe somente o estado, o texto e `source_ids`. A aplicação valida os IDs, acrescenta as referências `[source_id]` e monta documento, página, `chunk_id` e excerto a partir do mapa da recuperação. Campos adicionais, fontes inexistentes, referências escritas pelo próprio modelo e conflitos com menos de duas fontes são rejeitados.
+O prompt delimita pergunta e evidências em JSON e declara o conteúdo recuperado como dado não confiável. O modelo escolhe somente o estado, o texto, `source_ids` e, em respostas parciais, `unsupported_parts`. A aplicação valida os IDs, acrescenta as referências `[source_id]`, explicita deterministicamente as partes sem suporte e monta documento, página, `chunk_id` e excerto a partir do mapa da recuperação. Campos adicionais, fontes inexistentes, referências escritas pelo próprio modelo e conflitos com menos de duas fontes são rejeitados.
 
 Quando não há evidências, o modelo não é chamado e a aplicação retorna exatamente: **“Não encontrei evidências suficientes nos documentos cadastrados para responder a essa pergunta.”** Se resultados semelhantes não sustentarem a pergunta, o modelo pode selecionar `insufficient_evidence`, que produz a mesma saída sem fontes. Falhas da NVIDIA e saídas inválidas seguem erros técnicos próprios; não são apresentadas como falta de evidência.
 
-A geração realiza uma única chamada, sem tentativa automática de correção. Respostas sustentadas usam referências `[source_id]`, e as limitações registradas no corpus são acrescentadas deterministicamente. A validação garante a integridade estrutural e das fontes, mas a avaliação do suporte semântico com casos reais permanece para a SPEC-012.
+A geração realiza uma chamada e permite no máximo uma segunda tentativa quando a primeira saída viola o contrato ou se abstém apesar de haver evidências recuperadas. Uma revisão inválida não substitui uma primeira abstenção válida. Respostas sustentadas usam referências `[source_id]`, e as limitações registradas no corpus são acrescentadas deterministicamente. A validação garante a integridade estrutural e das fontes; a SPEC-012 registrou separadamente os limites semânticos observados com o modelo real.
 
 ## Consulta pela CLI
 
@@ -330,6 +330,52 @@ A consulta envia a pergunta ao modelo de embeddings NVIDIA e, quando houver evid
 
 Código 0 indica consulta concluída, inclusive quando a resposta é a mensagem de evidência insuficiente. Código 1 indica erro técnico de índice, recuperação, provedor ou validação. Código 2 indica pergunta/contexto inválido ou não coberto. Erros são escritos em `stderr`; uma falha técnica nunca é exibida como abstenção.
 
+## Avaliação do MVP
+
+A avaliação real é executada separadamente do `pytest`. Ela usa uma tentativa por caso, um limite total de chamadas e grava perguntas, respostas e excertos somente em arquivos `*.local.json` ignorados pelo Git:
+
+```bash
+set -a
+source .env
+set +a
+
+uv run --locked python -m academic_assistant evaluate \
+  --max-provider-calls 50
+```
+
+O relatório fica em `evaluation/results.local.json`. A revisão humana fica em `evaluation/reviews.local.json` e é aplicada sem novas chamadas externas:
+
+```bash
+uv run --locked python -m academic_assistant evaluate-review
+```
+
+Para repetir somente um caso afetado e consolidá-lo no relatório completo:
+
+```bash
+uv run --locked python -m academic_assistant evaluate \
+  --report evaluation/retry.local.json \
+  --max-provider-calls 3 \
+  --only-case IFMA-012
+
+uv run --locked python -m academic_assistant evaluate-merge \
+  --retry evaluation/retry.local.json
+```
+
+A execução final da SPEC-012 concluiu os 21 casos, incluindo um rerun focalizado após falha transitória do provedor, sem erros técnicos restantes. Foram registradas 38 chamadas: 16 de embeddings e 22 de geração; a integração não informou custo monetário. Resultados finais:
+
+| Métrica | Resultado |
+| --- | ---: |
+| Recuperação das evidências esperadas | 100% |
+| Cobertura das citações esperadas | 95,00% |
+| Precisão semântica das citações revisadas | 91,67% (22/24) |
+| Estado da resposta | 95,24% |
+| Abstenção | 100% |
+| Tratamento de contexto ausente | 100% |
+| Suporte semântico revisado | 90,48% |
+| Preservação dos requisitos revisados | 90,48% |
+
+O MVP ainda não deve ser declarado semanticamente validado a 100%. Na regressão final, IFMA-002 se absteve apesar de recuperar a evidência; IFMA-013 fez uma generalização mais forte que a fonte antes de explicitar a lacuna; IFMA-001 omitiu um requisito cumulativo; e IFMA-011 anexou duas fontes apenas relacionadas. A recuperação, a integridade estrutural das fontes, a abstenção fora do corpus, o conflito sintético e a resistência à instrução maliciosa foram aprovados.
+
 ## Testes
 
 Execute pelo ambiente sincronizado:
@@ -362,6 +408,8 @@ A SPEC-010 está concluída: a geração estruturada usa um modelo NVIDIA, trata
 
 A SPEC-011 está concluída: o comando `ask` coordena o índice persistido, a recuperação e a geração, imprime fontes verificáveis e usa códigos de saída distintos para sucesso, contexto inválido e falha técnica. O fluxo integrado possui testes offline com índice, embeddings e modelo fictícios.
 
+A SPEC-012 está concluída com limitações registradas: o executor real, o limite de chamadas, a revisão humana e a consolidação de reruns foram implementados. Os 21 casos foram concluídos e revisados, mas os resultados acima impedem declarar o MVP integralmente validado no aspecto semântico.
+
 ## Funcionalidades pendentes
 
-A avaliação semântica completa com o modelo real e a consolidação final das evidências ficam para a SPEC-012. Não há limiar de relevância calibrado. A seleção atual não comprova vigência normativa; essa limitação acompanha as respostas sustentadas.
+A próxima evolução deve reduzir abstenção indevida, omissões de condições e sobrecitação observadas na SPEC-012 e repetir os casos afetados. Não há limiar de relevância calibrado. A seleção atual não comprova vigência normativa; essa limitação acompanha as respostas sustentadas.

@@ -3,11 +3,14 @@
 import os
 from typing import Any, Protocol
 
+from langchain_core.messages import AIMessage, HumanMessage
+
 from academic_assistant.config import Settings
 from academic_assistant.prompts import build_generation_messages
 from academic_assistant.retrieval import RetrievalResult
 from academic_assistant.validation import (
     AnswerResult,
+    AnswerStatus,
     GenerationValidationError,
     ModelDecision,
     insufficient_evidence_result,
@@ -66,14 +69,73 @@ def _structured_model(model: InvokableModel) -> InvokableModel:
     )
 
 
+def _normalize_abstention(decision: ModelDecision) -> ModelDecision:
+    if decision.status is not AnswerStatus.INSUFFICIENT_EVIDENCE:
+        return decision
+    return ModelDecision(
+        status=decision.status,
+        answer=decision.answer,
+        source_ids=[],
+        unsupported_parts=[],
+    )
+
+
 def generate_answer(retrieval: RetrievalResult, model: InvokableModel) -> AnswerResult:
-    """Executa uma geração, valida e monta as fontes sem aceitar metadados do LLM."""
+    """Gera, revisa no máximo uma abstenção e monta fontes validadas."""
     if not retrieval.evidences:
         return insufficient_evidence_result()
     messages = build_generation_messages(retrieval)
+    structured = _structured_model(model)
     try:
-        raw = _structured_model(model).invoke(messages)
+        raw = structured.invoke(messages)
     except Exception as error:
         raise GenerationProviderError("O provedor não conseguiu gerar a resposta.") from error
-    decision = parse_model_decision(raw)
-    return validate_model_decision(decision, retrieval)
+    decision = _normalize_abstention(parse_model_decision(raw))
+    try:
+        first_result = validate_model_decision(decision, retrieval)
+    except GenerationValidationError as validation_error:
+        correction_messages = [
+            *messages,
+            AIMessage(content=decision.model_dump_json()),
+            HumanMessage(
+                content=(
+                    "Corrija uma única vez a saída estruturada. Erro da validação: "
+                    f"{validation_error} Respeite todos os estados, source_ids e "
+                    "unsupported_parts definidos no prompt; não acrescente metadados."
+                )
+            ),
+        ]
+        try:
+            raw = structured.invoke(correction_messages)
+        except Exception as error:
+            raise GenerationProviderError(
+                "O provedor não conseguiu corrigir a resposta inválida."
+            ) from error
+        corrected_decision = _normalize_abstention(parse_model_decision(raw))
+        return validate_model_decision(corrected_decision, retrieval)
+    if decision.status.value == "insufficient_evidence":
+        review_messages = [
+            *messages,
+            AIMessage(content=decision.model_dump_json()),
+            HumanMessage(
+                content=(
+                    "Revise uma única vez a decisão de falta de evidência. Há trechos "
+                    "recuperados: verifique condições cumulativas, respostas negativas "
+                    "diretas e partes sustentadas. Use partial se apenas parte puder ser "
+                    "respondida. Regras complementares não são conflito. Mantenha "
+                    "insufficient_evidence se nenhum trecho sustentar uma resposta."
+                )
+            ),
+        ]
+        try:
+            raw = structured.invoke(review_messages)
+        except Exception as error:
+            raise GenerationProviderError(
+                "O provedor não conseguiu revisar a resposta."
+            ) from error
+        try:
+            revised_decision = _normalize_abstention(parse_model_decision(raw))
+            return validate_model_decision(revised_decision, retrieval)
+        except GenerationValidationError:
+            return first_result
+    return first_result

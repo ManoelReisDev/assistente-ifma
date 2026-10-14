@@ -1,6 +1,6 @@
 # Plano de execução — conclusão do MVP
 
-Data: 13 de outubro de 2026. Estado: em execução; SPEC-006 a SPEC-011 concluídas.
+Data: 13 de outubro de 2026. Estado: execução encerrada; SPEC-006 a SPEC-012 concluídas, com limitações semânticas registradas na avaliação final.
 
 ## 1. Objetivo e referências
 
@@ -162,6 +162,6 @@ Aceite: cada critério do MVP no AGENTS.md tem evidência reproduzível; casos c
 
 Para cada spec, vou conferir alterações existentes, ler o código afetado, implementar a menor entrega completa, executar as verificações relevantes e registrar resultados reais. Atualizarei o README quando houver mudança de uso ou comportamento e preservarei arquivos do usuário. Commits, publicações e chamadas externas serão realizados apenas quando incluídos no escopo autorizado.
 
-A próxima atividade executável é a SPEC-012: executar e revisar o conjunto de avaliação real, corrigir falhas na camada responsável e consolidar a documentação de entrega do MVP.
+A SPEC-012 foi executada e revisada. A recuperação e os contratos estruturais foram comprovados, mas a avaliação real registrou abstenção indevida, generalização, omissão de condição e sobrecitação em casos específicos. Esses itens devem orientar uma próxima spec de melhoria antes de declarar validação semântica integral.
 
 O critério de parada é o MVP funcionando pelo terminal e avaliado conforme o AGENTS.md. Interface web, OCR automático, pesquisa web nas respostas, autenticação, agentes autônomos e infraestrutura distribuída ficam para planejamento posterior.

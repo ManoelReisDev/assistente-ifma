@@ -108,6 +108,7 @@ def test_query_reloads_index_and_returns_validated_answer(tmp_path: Path) -> Non
             "status": "supported",
             "answer": "A revisão fictícia pode ser solicitada em cinco dias úteis.",
             "source_ids": ["1"],
+            "unsupported_parts": [],
         }
     )
 

@@ -47,6 +47,12 @@ class ModelDecision(BaseModel):
             "Identificadores fornecidos que sustentam a resposta, sem metadados adicionais."
         )
     )
+    unsupported_parts: list[str] = Field(
+        description=(
+            "Somente para status partial: partes da pergunta que não puderam ser "
+            "respondidas pelas evidências. Deve ser vazia nos demais estados."
+        )
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -110,12 +116,17 @@ def validate_model_decision(
     """Valida referências e monta fontes exclusivamente a partir da recuperação."""
     answer = decision.answer.strip()
     source_ids = [source_id.strip() for source_id in decision.source_ids]
+    unsupported_parts = [part.strip() for part in decision.unsupported_parts]
     if any(not source_id for source_id in source_ids):
         raise GenerationValidationError("A resposta contém source_id vazio.")
+    if any(not part for part in unsupported_parts):
+        raise GenerationValidationError("A resposta contém parte não sustentada vazia.")
+    if len(unsupported_parts) != len(set(unsupported_parts)):
+        raise GenerationValidationError("A resposta repete partes não sustentadas.")
     citations = CITATION_PATTERN.findall(answer)
 
     if decision.status is AnswerStatus.INSUFFICIENT_EVIDENCE:
-        if source_ids or citations:
+        if source_ids or citations or unsupported_parts:
             raise GenerationValidationError(
                 "Resposta sem evidência não pode conter referências."
             )
@@ -133,11 +144,23 @@ def validate_model_decision(
         raise GenerationValidationError(
             "O modelo não deve produzir referências; elas são montadas pela aplicação."
         )
+    if decision.status is AnswerStatus.PARTIAL and not unsupported_parts:
+        raise GenerationValidationError(
+            "Uma resposta parcial deve identificar a parte não sustentada."
+        )
+    if decision.status is not AnswerStatus.PARTIAL and unsupported_parts:
+        raise GenerationValidationError(
+            "Somente uma resposta parcial pode declarar partes não sustentadas."
+        )
     sources = _sources_for_ids(source_ids, retrieval)
     if decision.status is AnswerStatus.CONFLICT and len(sources) < 2:
         raise GenerationValidationError("Um conflito precisa de ao menos duas fontes.")
 
     answer += " " + " ".join(f"[{source_id}]" for source_id in source_ids)
+    if unsupported_parts:
+        answer += "\n\nNão encontrei evidências suficientes para: " + "; ".join(
+            unsupported_parts
+        ) + "."
     if retrieval.limitations:
         answer += "\n\nLimitação do corpus: " + " ".join(retrieval.limitations)
     return AnswerResult(answer=answer, sources=sources, status=decision.status)

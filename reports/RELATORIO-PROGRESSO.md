@@ -866,3 +866,32 @@ O progresso obtido estabelece um ponto de partida verificável para o restante d
 - [Testes de ingestão](tests/test_ingestion.py)
 
 Este relatório foi elaborado a partir do código, das especificações, do README e das evidências registradas na implementação. Não reproduz o conteúdo dos PDFs locais nem certifica a validade acadêmica de seus textos.
+
+## 16. Atualização de 13 de outubro de 2026 — SPEC-006 a SPEC-012
+
+Esta seção preserva o relatório histórico acima e registra a evolução posterior. O fluxo completo do RAG foi implementado: seleção do corpus, divisão por página, embeddings NVIDIA, índice Chroma persistente, recuperação filtrada por contexto, geração estruturada, validação determinística, consulta pela CLI e avaliação real separada dos testes.
+
+O corpus inicial de regras discentes contém `doc3.pdf`, específico do Campus São Luís–Monte Castelo, e `doc4.pdf`, com normas gerais de graduação e vigência atual não comprovada. `doc1.pdf` e `doc2.pdf` continuam preservados, mas foram excluídos da seleção por tratarem da carreira técnico-administrativa. A ingestão atual processa quatro PDFs e 85 páginas; o índice ativo contém dois documentos, 67 páginas e 169 trechos.
+
+Os modelos escolhidos foram `nvidia/nemotron-3-embed-1b`, com 2.048 dimensões, e `nvidia/nemotron-3-super-120b-a12b`. O índice é versionado e publicado atomicamente. A consulta exige instituição e nível do curso e inclui fontes específicas de campus somente quando o campus correspondente é informado.
+
+A SPEC-012 executou 16 casos locais e cinco sintéticos. O relatório local registra hashes do código, prompt, corpus e casos, manifesto do índice, modelos, parâmetros e chamadas. Uma falha transitória em IFMA-012 foi repetida isoladamente e consolidada após verificação de compatibilidade. No total consolidado foram contabilizadas 38 chamadas, 16 de embeddings e 22 de geração; a integração não informou custo monetário.
+
+| Métrica da avaliação real | Resultado |
+| --- | ---: |
+| Casos concluídos | 21/21 |
+| Erros técnicos após consolidação | 0 |
+| Recuperação das evidências esperadas | 100% |
+| Cobertura das citações esperadas | 95,00% |
+| Precisão semântica das citações | 91,67% |
+| Estado da resposta | 95,24% |
+| Abstenção | 100% |
+| Contexto ausente | 100% |
+| Suporte semântico revisado | 90,48% |
+| Preservação dos requisitos | 90,48% |
+
+Conflito, resposta parcial, exceção, negação e instrução maliciosa foram aprovados nos casos sintéticos. A avaliação também encontrou limites que impedem declarar validação semântica integral: IFMA-002 se absteve apesar da evidência recuperada; IFMA-013 generalizou além do trecho antes de explicitar a lacuna; IFMA-001 omitiu uma condição cumulativa; e IFMA-011 anexou duas fontes apenas relacionadas. Esses resultados são falhas observadas do modelo e da seleção de citações, não falhas de ingestão ou recuperação.
+
+O MVP funciona de ponta a ponta pelo terminal, reutiliza o índice e apresenta fontes verificáveis. Sua infraestrutura e seus contratos estão validados; a qualidade semântica permanece aprovada parcialmente e requer uma próxima iteração focada nos quatro casos registrados.
+
+A verificação final da implementação aprovou 80 testes offline, compilação de `src` e `tests`, consistência do lockfile, validação dos JSONs e whitespace. Os relatórios locais, revisões, PDFs e índice permaneceram ignorados pelo Git.
