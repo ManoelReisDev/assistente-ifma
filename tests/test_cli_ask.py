@@ -128,3 +128,12 @@ def test_ask_cli_reports_technical_error_on_stderr(monkeypatch, capsys) -> None:
     assert code == 1
     assert output.out == ""
     assert output.err == "Erro de consulta: Índice fictício ausente.\n"
+
+
+def test_ask_defaults_to_ifma_and_missing_level_does_not_request_institution(capsys):
+    from academic_assistant.cli import build_parser
+    assert build_parser().parse_args(["ask", "Pergunta"]).institution == "IFMA"
+    assert main(["ask", "Posso trancar meu curso?"]) == 2
+    error = capsys.readouterr().err
+    assert "nível do curso" in error
+    assert "instituição" not in error

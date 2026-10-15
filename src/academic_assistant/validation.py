@@ -97,6 +97,8 @@ def _sources_for_ids(
     unknown = [source_id for source_id in source_ids if source_id not in source_map]
     if unknown:
         raise GenerationValidationError("A resposta cita uma fonte inexistente.")
+    if set(source_ids) & retrieval.superseded_source_ids:
+        raise GenerationValidationError("A resposta cita uma versão anterior; use a fonte mais recente do grupo revisado.")
     return tuple(
         AnswerSource(
             source_id=item.source_id,
@@ -163,6 +165,20 @@ def validate_model_decision(
         ) + "."
     if retrieval.limitations:
         answer += "\n\nLimitação do corpus: " + " ".join(retrieval.limitations)
+    superseded = retrieval.superseded_source_ids
+    if superseded:
+        preferred = {
+            source.precedence_group: source
+            for source_id in source_ids
+            if (source := retrieval.source_map[source_id]).precedence_group
+            and any(retrieval.source_map[old].precedence_group == source.precedence_group for old in superseded)
+        }
+        if preferred:
+            answer += "\n\n" + " ".join(
+                f"Fonte priorizada: {source.document_name} ({source.publication_date}), "
+                f"por ser a versão mais recente do grupo revisado [{source.source_id}]."
+                for source in preferred.values()
+            )
     return AnswerResult(answer=answer, sources=sources, status=decision.status)
 
 

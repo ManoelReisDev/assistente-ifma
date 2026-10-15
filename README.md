@@ -22,12 +22,12 @@ Documentação conferida contra código, lockfile, testes e artefatos locais dis
 | Filtrar fontes por contexto acadêmico | Implementada em `retrieval.py`: instituição, nível, campus e modalidade |
 | Gerar resposta e apresentar fontes | Implementada em `generation.py`, `validation.py` e CLI `ask` |
 | Resposta parcial, conflito e abstenção | Contratos implementados; classificação semântica depende do modelo |
-| Testes offline e avaliação com modelo real | Implementados; 80 testes passaram nesta revisão e há relatório real anterior |
+| Testes offline e avaliação com modelo real | Implementados; 148 testes offline passaram; correções pós-revisão verificadas em seis casos reais/sintéticos |
 | Verificar vigência, revogação ou período letivo | Não implementado; hash identifica conteúdo, não validade normativa |
 | OCR integrado, busca híbrida e reranking | Não implementados |
 | Interface web, API, autenticação e histórico de conversa | Não implementados; interface atual é uma consulta por comando |
 
-Não há entrega parcialmente implementada identificada no código: as SPEC-001 a SPEC-012 estão registradas como concluídas. A melhoria da qualidade semântica permanece pendente; as evoluções da seção 14 são propostas, não funcionalidades disponíveis.
+As SPEC-001 a SPEC-012 estão registradas como concluídas, com as limitações semânticas da avaliação. A [SPEC-013 — Proveniência da avaliação e regressões semânticas](specs/013-proveniencia-e-regressoes-semanticas.md) está em validação: a regressão anterior foi revisada por Manoel, as duas mudanças de produto foram implementadas e uma nova regressão integral concluiu 21 casos, com repetição de duas falhas do provedor. A revisão humana dessa nova regressão ainda está pendente. As demais evoluções da seção 14 continuam propostas.
 
 ### Corpus disponível no ambiente de desenvolvimento
 
@@ -261,11 +261,28 @@ Atualizar, remover ou incluir documentos exige revisar o inventário e reconstru
 
 `ask` recebe a pergunta como argumento posicional. `answer_question()` rejeita entrada vazia; a busca aplica `strip()` sem reescrever, traduzir ou expandir a pergunta. Não há memória de conversa.
 
-`RetrievalContext` contém `institution`, `course_level`, `campus` e `modality`. Instituição/nível são exigidos antes de inicializar provedores. `_resolve_scope()` normaliza esses campos removendo acentos, diferenças de caixa e pontuação, e reconhece formas usuais do nome do IFMA.
+`RetrievalContext` contém `institution`, `course_level`, `campus` e `modality`. O assistente é exclusivo do IFMA: instituição omitida, nula ou vazia assume IFMA, e outra instituição explícita é recusada. O nível do curso continua obrigatório antes de inicializar provedores. `_resolve_scope()` normaliza esses campos removendo acentos, diferenças de caixa e pontuação, e reconhece formas usuais do nome do IFMA. Uma pergunta como “Posso trancar meu curso?” pede apenas o nível do curso.
 
 Documentos com campus/modalidade específicos exigem valor correspondente; sem restrição no inventário, permanecem candidatos gerais compatíveis. Modalidade desconhecida não prova aplicação universal. O filtro Chroma usa `document_id` após resolver escopo no inventário; não infere aplicabilidade pelos vetores.
 
 Não há campo de regime acadêmico, período ou versão no contexto da consulta, nem resolução automática de vigência. Condições da norma precisam ser preservadas pelo modelo ou explicitadas como limitação.
+
+### Prioridade da fonte mais recente
+
+A decisão da revisão humana passou a priorizar a versão mais recente, quando comparável. No inventário, cada documento pode ter `publication_date` (data documental revisada em `YYYY-MM-DD`) e `precedence_group` (grupo curado de versões integralmente substitutas do mesmo escopo). Exemplo de campos adicionais **fictícios**:
+
+```json
+{
+  "publication_date": "2025-01-01",
+  "precedence_group": "versoes-da-mesma-norma-ficticia"
+}
+```
+
+Somente agrupe versões que possam substituir-se integralmente e tenham instituição, nível, campus e modalidade equivalentes. Documentos complementares e regras de outros períodos/escopos devem ficar fora desse grupo. O código rejeita grupos aplicáveis que misturem escopos de campus/modalidade. Data de upload, nome “recente” e similaridade não comprovam prioridade; o cadastro deve ser conferido no documento. Alterar esses campos muda o experimento de avaliação, mesmo sem mudar embeddings.
+
+Após resolver o contexto, versões anteriores de grupos integralmente datados são excluídas **antes da busca vetorial**. As evidências recebem data/grupo a partir do inventário, sem reindexação. Na geração direta com evidências fornecidas, as versões anteriores também ficam fora do prompt, e citá-las é erro de validação. A resposta explica qual fonte foi priorizada e a data. Isso é política explícita da aplicação, sem afirmar revogação legal.
+
+Sem data/grupo ou com data desconhecida em alguma versão, não há descarte automático. Fontes empatadas na data mais recente permanecem disponíveis e incompatibilidades continuam sendo apresentadas como conflito. Não preencha datas presumidas no corpus real: os documentos locais atuais continuam sem esse cadastro de precedência.
 
 ### Recuperação e contexto vizinho
 
@@ -294,7 +311,7 @@ As referências `[source_id]` são acrescentadas ao final do texto principal. N�
 O fluxo faz uma chamada inicial e permite uma adicional em duas situações:
 
 - Decisão interpretada que falha na validação lógica: pede correção. JSON malformado ou esquema inválido na primeira interpretação produz erro imediato, pois a interpretação ocorre antes do bloco de correção.
-- Primeira decisão válida `insufficient_evidence` com candidatos: pede revisão. Revisão inválida conserva a primeira abstenção válida; falha do provedor na revisão continua sendo erro técnico.
+- Primeira decisão válida `insufficient_evidence` com candidatos: pede revisão. Revisão inválida ou falha do provedor segue o caminho de erro técnico; não é convertida em abstenção.
 
 Antes de validar abstenção, `_normalize_abstention()` esvazia `source_ids`/`unsupported_parts`. A mensagem final de insuficiência é montada pelo núcleo. Duas invocações é o limite dessa função, não uma política global de tentativas de rede do SDK, nem prova de que a segunda resposta será melhor.
 
@@ -305,7 +322,8 @@ Antes de validar abstenção, `_normalize_abstention()` esvazia `source_ids`/`un
 | Busca válida com zero trechos | Abstenção determinística sem criar/chamar LLM |
 | Candidatos sem suporte | LLM pode selecionar `insufficient_evidence`; uma revisão limitada |
 | Parte da pergunta com suporte | `partial`, fontes da parte respondida e lacuna explícita |
-| Evidências aplicáveis incompatíveis | `conflict`; exige duas fontes, mas o modelo identifica o conflito |
+| Versões substitutas com datas revisadas | Prioriza a mais recente, filtra versões anteriores e explica a escolha |
+| Evidências aplicáveis incompatíveis sem prioridade comprovada | `conflict`; exige duas fontes, mas o modelo identifica o conflito |
 | Ambiguidade de condição/alcance | Prompt orienta preservar escopo; não há detector semântico determinístico |
 | Contexto ausente ou não coberto | Erro de contexto, diferente de consulta concluída sem evidências |
 | Índice ausente, busca/API falha ou saída inválida | Erro técnico; resposta acadêmica não é apresentada |
@@ -468,7 +486,7 @@ assistente-ifma/
 ├── evaluation/
 │   ├── README.md             # contrato dos casos/dados locais
 │   └── synthetic-cases.json  # cinco cenários fictícios
-├── specs/                    # SPEC-001 a SPEC-012 e template
+├── specs/                    # SPEC-001 a SPEC-013 e template
 ├── reports/
 │   ├── RELATORIO-GERAL.md
 │   ├── RELATORIO-PROGRESSO.md
@@ -636,7 +654,6 @@ Para o corpus local da seção 1:
 ```bash
 uv run --locked python -m academic_assistant ask \
   "Como funciona o aproveitamento de estudos?" \
-  --institution IFMA \
   --course-level graduação
 ```
 
@@ -650,7 +667,7 @@ uv run --locked python -m academic_assistant ask \
   --campus "São Luís–Monte Castelo"
 ```
 
-`ask` aceita `--modality` e os três caminhos da indexação. Pergunta segue para embeddings e, havendo candidatos, geração com evidências. Comandos dependem de corpus/índice/endpoint; não prometem resposta para todo assunto/contexto. Sem modo interativo ou saída JSON na CLI.
+`ask` aceita `--modality` e os três caminhos da indexação. `--institution IFMA` continua aceito por compatibilidade e pode ser omitido. Pergunta segue para embeddings e, havendo candidatos, geração com evidências. Comandos dependem de corpus/índice/endpoint; não prometem resposta para todo assunto/contexto. Sem modo interativo ou saída JSON na CLI.
 
 Diagnóstico sem LLM pelo núcleo:
 
@@ -693,7 +710,7 @@ Código zero de avaliação não significa aprovação semântica. Revisão comp
 uv run --extra dev --locked --offline pytest -q
 ```
 
-Em 14/10/2026: **80 testes aprovados**, Python 3.10.12/pytest 8.4.2, sem rede/chaves reais. Regras explicitamente fictícias.
+Após as correções da revisão da SPEC-013, em 14/10/2026: **148 testes aprovados**, Python 3.10.12/pytest 8.4.2, sem rede/chaves reais. Regras explicitamente fictícias.
 
 | Arquivos de teste | Provas principais |
 | --- | --- |
@@ -712,38 +729,48 @@ Modelos simulados demonstram comportamento do código. O teste de prompt inspeci
 
 `run_evaluation()` usa casos reais revisados em `evaluation/cases.local.json` e cinco cenários fictícios versionados. Uma execução por caso, com revisão limitada da geração. Reais passam pela recuperação; sintéticos recebem evidências diretamente e **não testam busca vetorial**. Sintético vazio não chama LLM.
 
-O relatório registra entradas, candidatos/distâncias, resposta/fontes, checks, erros, hashes de código/prompt/corpus/casos, configuração, índice e contagem de invocações. Revisão humana avalia suporte, requisitos e citações sustentadas. Não há LLM juiz.
+Os novos relatórios usam **formato 2**: cada resultado aponta para um `run_id` registrado em `runs`, com snapshot de configuração antes das chamadas e fingerprint de experimento. O hash canônico SHA-256 de cada resultado inclui entrada, expectativa, origem, evidências, resposta, erro e decisões de geração; exclui a revisão humana e o próprio digest. JSON canônico usa UTF-8, chaves ordenadas, separadores compactos e não aceita NaN. Hashes identificam conteúdo, não autenticam artefatos nem comprovam vigência.
 
-Com credencial, corpus, casos reais e índice:
+A compatibilidade inclui código/prompt/schema, Python/dependências/lockfile, parâmetros de embeddings/geração/recuperação/chunking, coleção, índice ativo, seleção e hashes do corpus e arquivos completos de casos. Caminhos de entrada ficam registrados, mas a comparação usa conteúdo. ID/horários de execução, caminho de saída, orçamento, subconjunto e Git são metadados operacionais. Nome de modelo solicitado não garante reprodução: nenhuma revisão imutável do endpoint foi registrada.
 
-```bash
-uv run --locked python -m academic_assistant evaluate \
-  --max-provider-calls 50
-```
-
-Parser usa 40 por padrão; acima aumenta-se explicitamente. A contagem distingue tentativas de embedding da pergunta e invocações de geração. Não inclui indexação ou todas as requisições internas do SDK; não é teto financeiro. Interrompe antes da próxima invocação contada. O relatório só é gravado ao terminar os casos, sem checkpoint parcial.
-
-Relatório padrão: `evaluation/results.local.json`, podendo conter dados sensíveis. Revisão em `evaluation/reviews.local.json`, aplicada sem chamadas externas:
-
-```bash
-uv run --locked --offline python -m academic_assistant evaluate-review
-```
-
-Formato: `format_version: 1`, identificação/data do revisor e entradas com `id`, `semantic_support`/`requirements_preserved` booleanos, `supported_citation_count` inteiro e `notes`. Revisão completa pode registrar reprovação.
-
-Repetir um caso e consolidar:
+Com credencial, corpus, casos reais e índice, escolha **um relatório novo**:
 
 ```bash
 uv run --locked python -m academic_assistant evaluate \
-  --report evaluation/retry.local.json \
+  --report evaluation/nova-avaliacao.local.json \
+  --max-provider-calls 60
+```
+
+Parser usa 40 chamadas por padrão. A contagem distingue tentativas de embedding da pergunta e invocações de geração, inclusive a segunda tentativa. Não inclui indexação nem todas as requisições internas do SDK; não é teto financeiro. Interrompe antes da próxima invocação contada. Não há checkpoint incremental dos casos: orçamento excedido ou mudança de configuração não publica execução concluída. Falha de inicialização, quando o snapshot está disponível, produz registro incompleto com zero chamadas contadas e sem inventar manifesto. Não sobrescreva relatórios históricos.
+
+`generation_decisions` registra finalidade (`initial`, `correction`, `abstention_review`), decisão recebida antes da normalização, erro de interpretação/validação e seleção efetiva. Não solicita raciocínio interno, não acrescenta chamadas e não é exibido na CLI de consulta. Saída inválida da segunda invocação segue o caminho de erro técnico. Evidências recuperadas são preservadas também quando a geração falha. Conteúdo real fica apenas nos arquivos locais ignorados pelo Git.
+
+A revisão humana do formato 2 informa, em cada entrada, `id`, `run_id`, `result_sha256`, `case_sha256`, `semantic_support`, `requirements_preserved`, `supported_source_ids`, `supported_citation_count` e `notes`. Copie as identidades do resultado examinado. Identificação `reviewer` e data `reviewed_at` com timezone podem estar por entrada ou no topo do arquivo. A contagem deve ser exatamente a quantidade de IDs sustentados, sem repetições e pertencentes às fontes exibidas. Revisão completa pode registrar reprovação; o código zero não significa aprovação semântica.
+
+```bash
+uv run --locked --offline python -m academic_assistant evaluate-review \
+  --report evaluation/nova-avaliacao.local.json \
+  --reviews evaluation/nova-revisao.local.json \
+  --output evaluation/nova-avaliacao-revisada.local.json
+```
+
+Revisões obsoletas são rejeitadas e as existentes não informadas no arquivo são preservadas. Relatórios/revisões legados de formato 1 continuam históricos e são rejeitados por essas operações; execute nova avaliação em outro arquivo, sem atribuir origem retrospectivamente.
+
+Repita somente falhas técnicas mantendo o experimento congelado:
+
+```bash
+uv run --locked python -m academic_assistant evaluate \
+  --report evaluation/repeticao.local.json \
   --max-provider-calls 3 \
   --only-case IFMA-012
 
 uv run --locked --offline python -m academic_assistant evaluate-merge \
-  --retry evaluation/retry.local.json
+  --report evaluation/nova-avaliacao-revisada.local.json \
+  --retry evaluation/repeticao.local.json \
+  --output evaluation/consolidacao.local.json
 ```
 
-`--only-case` é repetível. Consolidação exige correspondência de prompt/modelos/índice/arquivos de casos/corpus, soma contagens e remove revisões para nova revisão. Registra fingerprint de origem, mas não exige igualdade de todos os parâmetros/fingerprints na comparação; confira mudanças antes de misturar experimentos. Revise o relatório atualizado antes de reaplicar decisões humanas.
+`--only-case` é repetível. Consolidação exige igualdade integral do experimento, mantém as execuções originais e registra resultados anterior/novo por substituição. Preserva revisão/origem dos casos inalterados, invalida somente revisões substituídas e rejeita reaplicação da mesma execução. Repetição com erro técnico não substitui resultado. `--output` em revisão/consolidação mantém os relatórios-fonte intactos; sem a flag, o destino continua sendo `--report`. Não use os caminhos históricos como destino. Comparar experimentos diferentes é permitido; consolidá-los é rejeitado.
 
 ### Interpretação das métricas
 
@@ -776,11 +803,51 @@ Relatório consolidado da SPEC-012, **13/10/2026**: 21 casos (16 reais/cinco sin
 
 Nesta investigação, as métricas recalculadas coincidiram com as gravadas; hashes atuais de código/prompt/corpus/casos coincidiram com a configuração consolidada. Índice ativo: `20261013T152802Z-a163be2c3fcf`, 2 documentos/67 páginas/169 trechos. A preparação local reproduziu IDs sem novas chamadas.
 
-A consolidação atualiza o fingerprint global com o da última repetição e registra fingerprints anteriores em `reruns`. A coincidência final não prova que todos os casos foram executados com o mesmo código. O relatório reúne execuções de revisões distintas; auditar a proveniência de cada resultado requer também os artefatos das execuções originais.
+A consolidação histórica de formato 1 atualizava o fingerprint global com o da última repetição e registrava fingerprints anteriores em `reruns`. A coincidência final não prova que todos os casos foram executados com o mesmo código. Esse relatório histórico reúne execuções de revisões distintas; auditar a proveniência de cada resultado requer também os artefatos das execuções originais.
 
 Artefatos reais não são versionados. Resumo histórico público na [SPEC-012](specs/012-avaliacao-e-entrega.md) e no [progresso](reports/RELATORIO-PROGRESSO.md). Sem PDFs/casos/respostas/revisões locais, um leitor não audita ou reproduz os percentuais apenas com o checkout.
 
 Falhas: `IFMA-002` se absteve com evidência; `IFMA-013` generalizou além da condição; `IFMA-001` omitiu requisito cumulativo; `IFMA-011` anexou duas fontes relacionadas sem sustentar afirmações exibidas. Conflito/instrução maliciosa foram aprovados nos sintéticos revisados, sem provar resistência a outros ataques. `all_automated_checks_passed` e `all_reviewed_checks_passed` são falsos. O MVP funciona, mas não foi validado integralmente no aspecto semântico.
+
+### SPEC-013 — nova execução em 14/10/2026
+
+A infraestrutura de proveniência/revisões e o trace opcional foram implementados. O diagnóstico focal recuperou todas as cinco evidências esperadas dos quatro casos, mas reproduziu as falhas. Em IFMA-002, a segunda decisão respondeu negativamente e usou `partial` sem parte ausente; a validação rejeitou-a e a implementação anterior manteve a abstenção inicial. Esse caminho agora informa erro técnico. O prompt passou a usar exemplos fictícios de conjunção e escopo, composição explícita dos requisitos e seleção de fontes que sustentam o texto exibido, sem regras acadêmicas codificadas.
+
+| Execução separada | Casos/erros | Chamadas contadas | Estado correto | Recuperação/cobertura das evidências |
+| --- | --- | --- | --- | --- |
+| Diagnóstico | 4/0 | 9/12 — 4 embeddings + 5 gerações | 3/4 | 5/5 recuperadas; 4/5 citadas |
+| Candidato focal | 4/0 | 8/12 — 4 embeddings + 4 gerações | 4/4 | 5/5 recuperadas e citadas |
+| Regressão integral | 21/0 | 35/60 — 15 embeddings + 20 gerações | 21/21 | 20/20 recuperadas e citadas |
+
+Foram 52 invocações contadas entre as etapas, de um planejamento máximo de 84; nenhuma repetição semântica para selecionar a melhor saída. Inicializações sem acesso remoto no ambiente restrito falharam com zero chamadas contadas e registros incompletos separados. Esses números não contabilizam todas as requisições internas do SDK nem informam custo financeiro.
+
+Candidato e regressão têm o mesmo fingerprint `2d092cd57900b3797b7ac7023a0e054d435f38df1270be9457bf064b4d2f27f9`. São experimentos separados do diagnóstico, sem consolidação com os históricos. Na regressão, precisão automática por rótulos é 21/22 (95,45%); uma fonte complementar de IFMA-006 sustenta também afirmação sobre trancamento parcial/total e requer avaliação humana. Abstenção nos dois casos esperados e contexto ausente no caso correspondente tiveram estado correto. Conflito e instrução maliciosa preservaram os estados esperados nos sintéticos.
+
+Os relatórios locais originais são `evaluation/spec013-diagnostic.local.json`, `evaluation/spec013-candidate-v1.local.json` e `evaluation/spec013-regression-v1.local.json`. Posteriormente, Manoel revisou os 21 casos da regressão na conversa: 19 aprovados e duas solicitações de mudança de produto (IFMA-016 e SYN-004). As decisões estão em `spec013-regression-reviews.local.json`, aplicadas em `spec013-regression-reviewed.local.json`, sem sobrescrever o relatório original. IFMA-003 foi aprovado após a apresentação da possível ambiguidade. Diagnóstico/candidato continuam sem revisão humana aplicada.
+
+A revisão anterior registrou suporte/requisitos em 19/21 (90,48%) e fontes sustentadas em 21/22 (95,45%). Essas classificações incluem as duas novas decisões de produto, diferentes das expectativas originais. Não são métricas da implementação corrigida.
+
+As correções implementam IFMA implícito e prioridade por data/grupo revisados. A expectativa local de IFMA-016 foi ajustada por essa decisão humana; SYN-004 recebeu datas/grupo fictícios e passou a esperar a versão recente. Os relatórios e suas expectativas antigas permanecem intactos. O novo `evaluation/spec013-corrections-focal.local.json` executou IFMA-016 e os cinco sintéticos: seis casos concluídos, zero erros, 4/12 invocações de geração, estados 6/6 e evidências esperadas/citadas 4/4. A recuperação do caso IFMA-016 é dispensada por falta de nível, e os cinco sintéticos recebem evidências diretamente; essa etapa não comprova busca semântica real.
+
+Total contado da SPEC até aqui: 56/84. Manoel aprovou expressamente as novas saídas de IFMA-016 e SYN-004 na conversa. As duas revisões foram vinculadas aos hashes/execução novos em `spec013-corrections-reviews.local.json` e aplicadas em `spec013-corrections-reviewed.local.json`, com o original preservado. São 2/6 casos revisados nesse experimento; os outros quatro não receberam aprovação transferida. A avaliação focal da correção não substitui uma nova regressão integral de 21 casos com revisão humana. A SPEC permanece em validação. Não houve novas chamadas de indexação nem alteração dos PDFs/índice.
+
+### Regressão integral após as correções
+
+A pedido de Manoel, foi iniciada outra etapa de regressão, com limite de 60 invocações e o mesmo código/prompt/casos do experimento focal (`6cd43786b306c0ea1688817ec58e6d5a506f80e2a59db0c73a95ab41f1a320e3`). A primeira execução concluiu 19/21 casos, com falha do provedor em IFMA-014 e SYN-004. Só esses dois foram repetidos, com teto adicional individual de cinco chamadas e sem mudar a configuração. A consolidação preservou ambos os relatórios-fonte e o histórico das substituições.
+
+| Resultado da nova etapa | Valor |
+| --- | --- |
+| Casos concluídos após repetição técnica | 21/21 |
+| Erros técnicos restantes | 0 |
+| Uso contado, incluindo falhas | 38/60 — 16 embeddings e 22 gerações |
+| Estado esperado | 21/21 |
+| Evidências esperadas recuperadas/citadas | 19/19 em ambas |
+| Precisão automática por rótulos | 20/21 — 95,24% |
+| Revisões humanas aplicadas nesta regressão | 0/21 |
+
+Arquivos novos: `evaluation/spec013-corrections-regression.local.json`, `spec013-corrections-regression-retry.local.json` e `spec013-corrections-regression-final.local.json`. O cadastro de execuções preserva os tetos individuais de 60 e cinco; a soma operacional de `max_calls` no consolidado é 65, mas o uso real foi conferido contra o orçamento de etapa de 60. Foram 35 chamadas na primeira execução e três na repetição. O histórico acumulado passa a 94 chamadas: 56 das etapas anteriores e 38 desta nova etapa autorizada, que não foi apresentada como saldo do planejamento original de 84.
+
+A comparação exata em `spec013-corrections-regression-final-comparison.local.json` encontrou 14 casos com o mesmo texto exibido, fontes e expectativas já revisados, e sete diferentes: IFMA-001, IFMA-002, IFMA-003, IFMA-006, IFMA-008, IFMA-011 e IFMA-013. Essa comparação facilita uma nova confirmação humana, sem transferir aprovações automaticamente. Em especial, a redação de IFMA-001 e IFMA-003 deve ser conferida; pequenas mudanças de palavras podem afetar o sentido. A SPEC permanece em validação até revisar os novos resultados.
 
 ### Verificação desta revisão documental
 

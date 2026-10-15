@@ -53,20 +53,34 @@
     },
     {
       "id": "SYN-004",
-      "category": "conflict",
+      "category": "latest_source_precedence",
       "question": "Qual é o prazo para trancamento?",
       "context": {"institution": "Instituição Fictícia Aurora", "course_level": "graduação"},
+      "curation_note": "Datas e grupo inteiramente fictícios, acrescentados após a decisão humana de priorizar a versão mais recente. As duas fontes são versões substitutas de mesmo escopo neste cenário.",
+      "evidence": [
+        {
+          "source_id": "SYN-C",
+          "document_id": "norma-ficticia-antiga.pdf",
+          "document_name": "Norma Fictícia Antiga",
+          "page_number": 2,
+          "publication_date": "2020-01-01",
+          "precedence_group": "trancamento-aurora",
+          "excerpt": "O trancamento fictício poderá ser solicitado em até dez dias corridos."
+        },
+        {
+          "source_id": "SYN-D",
+          "document_id": "manual-ficticio-recente.pdf",
+          "document_name": "Manual Fictício Recente",
+          "page_number": 4,
+          "publication_date": "2025-01-01",
+          "precedence_group": "trancamento-aurora",
+          "excerpt": "O pedido fictício de trancamento deverá ser apresentado em até sete dias corridos."
+        }
+      ],
       "expected": {
-        "status": "conflict",
-        "answer_requirements": ["apresentar os dois prazos", "não presumir revogação", "citar SYN-C e SYN-D"],
+        "status": "answerable",
+        "answer_requirements": ["informar sete dias corridos", "usar SYN-D, a versão mais recente do grupo revisado", "explicitar a prioridade por data sem afirmar revogação legal"],
         "evidence": [
-          {
-            "source_id": "SYN-C",
-            "document_id": "norma-ficticia-antiga.pdf",
-            "document_name": "Norma Fictícia Antiga",
-            "page_number": 2,
-            "excerpt": "O trancamento fictício poderá ser solicitado em até dez dias corridos."
-          },
           {
             "source_id": "SYN-D",
             "document_id": "manual-ficticio-recente.pdf",

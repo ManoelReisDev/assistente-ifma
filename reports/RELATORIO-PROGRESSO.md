@@ -895,3 +895,53 @@ Conflito, resposta parcial, exceção, negação e instrução maliciosa foram a
 O MVP funciona de ponta a ponta pelo terminal, reutiliza o índice e apresenta fontes verificáveis. Sua infraestrutura e seus contratos estão validados; a qualidade semântica permanece aprovada parcialmente e requer uma próxima iteração focada nos quatro casos registrados.
 
 A verificação final da implementação aprovou 80 testes offline, compilação de `src` e `tests`, consistência do lockfile, validação dos JSONs e whitespace. Os relatórios locais, revisões, PDFs e índice permaneceram ignorados pelo Git.
+
+## 17. Atualização de 14 de outubro de 2026 — SPEC-013
+
+Proveniência de avaliação implementada com relatório/revisão de formato 2, snapshot antes das chamadas, fingerprint integral de experimento, `run_id`/hash por resultado e revisão vinculada à saída/expectativa e às fontes sustentadas. Consolidação rejeita divergências/reaplicação e preserva origem/revisão dos casos inalterados, com histórico por substituição. `--output` permite conservar relatórios-fonte em revisão/consolidação. O formato 1 histórico não foi migrado.
+
+Diagnóstico local dos quatro casos recuperou todas as evidências e reproduziu as falhas: omissão cumulativa, exclusividade indevida, fonte sem uso no texto e, em IFMA-002, revisão negativa classificada partial sem parte ausente, cuja rejeição mantinha a abstenção inicial. Correções genéricas no prompt usam composição explícita e exemplos fictícios; segunda saída inválida agora é erro técnico. Limite de duas gerações e contrato público preservados. Não houve alteração de recuperação/modelos/expectativas.
+
+| Execução nova | Casos concluídos | Erros | Chamadas | Estados corretos | Recuperação/cobertura de citações |
+| --- | ---: | ---: | ---: | ---: | --- |
+| Diagnóstico | 4/4 | 0 | 9/12 | 3/4 | 5/5; 4/5 |
+| Candidato focal | 4/4 | 0 | 8/12 | 4/4 | 5/5; 5/5 |
+| Regressão integral | 21/21 | 0 | 35/60 | 21/21 | 20/20; 20/20 |
+
+Total contado de 52/84 entre etapas; custo monetário desconhecido. Tentativas de inicialização no ambiente restrito falharam sem chamadas contadas; relatórios incompletos separados preservados quando disponíveis. Candidato/regressão têm fingerprint idêntico `2d092cd57900b3797b7ac7023a0e054d435f38df1270be9457bf064b4d2f27f9`. Execuções reais completas utilizaram acesso remoto aprovado, sem consolidação com históricos.
+
+Regressão: precisão por rótulos 21/22 (95,45%), abstenção 2/2, contexto ausente 1/1. Conflito/instrução maliciosa mantiveram estados nos sintéticos. Fonte complementar de IFMA-006 e redação da média final em IFMA-003 precisam de exame humano. Os quatro alvos mostraram os comportamentos pedidos na inspeção do agente; essa inspeção não é aprovação humana.
+
+126 testes offline aprovados, lockfile, compilação, JSONs, ajuda/argumentos, links/Markdown alterados e whitespace verificados. Resultados privados nos novos `evaluation/spec013-*.local.json`; históricos, PDFs e índice preservados. Sem novas dependências.
+
+**Estado: em validação.** Zero revisões humanas aplicadas; métricas semânticas continuam sem valor. Minutas locais de revisão têm identidades e conteúdo examinável, mas revisor/data/decisões pendentes. A [SPEC-013](../specs/013-proveniencia-e-regressoes-semanticas.md) registra diagnóstico, intervenções, limites e pendências. Não declarar conclusão sem revisão dos três experimentos e comprovação de ausência de regressões semânticas.
+
+## 18. Correções após a revisão humana da SPEC-013
+
+Manoel revisou posteriormente os 21 casos da regressão anterior: 19 aprovados e duas decisões de produto (IFMA-016 e SYN-004). As revisões estão vinculadas aos resultados antigos e foram aplicadas em outro relatório, sem sobrescrever o original. A fórmula apresentada em IFMA-003 foi aprovada pelo revisor. Diagnóstico/candidato anteriores continuam sem revisão humana aplicada.
+
+Foram implementados IFMA implícito e prioridade da fonte mais recente entre versões integralmente substitutas de mesmo escopo, com data/grupo revisados no inventário. Outras instituições explícitas são recusadas; nível do curso e filtros acadêmicos continuam necessários. Versões antigas são filtradas antes da busca e não podem ser citadas pela geração direta. Sem datas/grupo suficientes ou em empate, o conflito continua sendo apresentado. Datas de upload ou nomes de arquivo não definem prioridade; não se afirma revogação legal. Nenhuma data foi presumida no corpus real, e o índice existente permanece reutilizável.
+
+As duas expectativas foram atualizadas pela decisão explícita do usuário, com metadados fictícios identificados em SYN-004. Relatórios/revisões anteriores não foram reclassificados nem misturados com o novo código. Aprovações antigas não são transferidas à saída nova.
+
+Verificação: 148 testes offline aprovados; novo experimento focal em `evaluation/spec013-corrections-focal.local.json`, com IFMA-016 e cinco sintéticos: seis concluídos, zero erros, 4/12 chamadas de geração, estados corretos em 6/6 e evidências recuperadas/citadas em 4/4. Os sintéticos não testam busca vetorial; IFMA-016 é resolvido antes da busca. Substituição de versões na busca foi verificada offline com Chroma temporário. Fingerprint `6cd43786b306c0ea1688817ec58e6d5a506f80e2a59db0c73a95ab41f1a320e3`; total contado até aqui 56/84. Lockfile, compilação, JSONs, CLI, links novos/estrutura Markdown e whitespace conferidos.
+
+Manoel aprovou explicitamente as duas novas saídas corrigidas, IFMA-016 e SYN-004. As decisões foram vinculadas à nova execução e aos hashes exatos em `evaluation/spec013-corrections-reviews.local.json`, validadas e aplicadas em `spec013-corrections-reviewed.local.json`, preservando o relatório-fonte e a identidade dos resultados. São 2/6 casos revisados no novo experimento; os outros quatro não receberam aprovação por transferência. Sem chamadas externas adicionais.
+
+**A SPEC permanece em validação:** as duas correções têm aprovação humana; as revisões restantes e uma nova regressão integral ainda estão pendentes. Métricas semânticas de 19/21 e citações em 21/22 pertencem à revisão anterior, que incluiu as duas mudanças de produto.
+
+## 19. Nova regressão integral após as correções
+
+A pedido de Manoel, foi executada a regressão de 21 casos com o código corrigido congelado e limite de etapa 60 chamadas. A primeira execução concluiu 19 casos e teve duas falhas do provedor (IFMA-014 e SYN-004), usando 35 chamadas. A repetição somente desses erros técnicos concluiu ambos, usando três chamadas. O consolidado `evaluation/spec013-corrections-regression-final.local.json` reúne 21 casos sem erros restantes e 38 chamadas efetivas (16 embeddings/22 gerações), preservando os relatórios-fonte e o histórico das substituições.
+
+Experimento idêntico ao focal corrigido: `6cd43786b306c0ea1688817ec58e6d5a506f80e2a59db0c73a95ab41f1a320e3`. Os tetos individuais de 60 e cinco foram preservados; embora `max_calls` agregado some 65, o uso foi conferido contra o orçamento de etapa 60. Total acumulado: 94 chamadas (56 anteriores + 38 desta nova etapa autorizada). Não houve repetição de saída válida para seleção semântica nem reindexação. 148 testes offline, lockfile e compilação aprovados novamente.
+
+Checks automáticos: estados 21/21, recuperação/cobertura 19/19, precisão por rótulos 20/21, abstenção 2/2 e contexto ausente 1/1. Comparação exata em `spec013-corrections-regression-final-comparison.local.json` identificou 14 respostas com caso/expectativa e conteúdo exibido idênticos às referências já revisadas e sete diferentes. Essas identidades não transferem aprovação humana. As sete diferenças serão apresentadas para revisão, com atenção à redação de IFMA-001 e IFMA-003.
+
+**Estado registrado antes da revisão final:** em validação, com a nova regressão técnica concluída e a revisão humana pendente. A revisão final está documentada na seção seguinte.
+
+## 20. Encerramento da SPEC-013
+
+Manoel concluiu a revisão humana dos quatro casos do diagnóstico, dos quatro casos do candidato focal e dos 21 casos da nova regressão corrigida. O diagnóstico preserva os dois achados esperados (abstenção indevida em IFMA-002 e extrapolação em IFMA-013); os quatro resultados do candidato foram aprovados. A nova regressão foi aprovada integralmente: 21/21 casos, suporte semântico de 100%, requisitos preservados de 100%, citações sustentadas de 100% e zero erros técnicos.
+
+As decisões estão nos arquivos locais de revisão, vinculadas aos `run_id`, hashes de caso e hashes de resultado. Os relatórios-fonte, as repetições, o índice, os PDFs e os históricos anteriores permanecem preservados. A SPEC-013 está finalizada conforme seus critérios de aceite e Definition of Done.

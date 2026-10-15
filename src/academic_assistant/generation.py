@@ -80,20 +80,60 @@ def _normalize_abstention(decision: ModelDecision) -> ModelDecision:
     )
 
 
-def generate_answer(retrieval: RetrievalResult, model: InvokableModel) -> AnswerResult:
+def generate_answer(
+    retrieval: RetrievalResult, model: InvokableModel,
+    *, trace: list[dict[str, Any]] | None = None,
+) -> AnswerResult:
     """Gera, revisa no máximo uma abstenção e monta fontes validadas."""
     if not retrieval.evidences:
         return insufficient_evidence_result()
+    def interpret(raw: Any, purpose: str) -> tuple[ModelDecision, AnswerResult | None, str | None]:
+        event: dict[str, Any] = {"purpose": purpose, "received": None,
+                                 "validation_error": None, "selected": False}
+        if trace is not None:
+            trace.append(event)
+        try:
+            received = parse_model_decision(raw)
+            event["received"] = received.model_dump(mode="json")
+            decision = _normalize_abstention(received)
+            event["normalized"] = decision.model_dump(mode="json")
+        except GenerationValidationError as error:
+            event["validation_error"] = str(error)
+            content = raw.content if isinstance(raw, AIMessage) else raw
+            if isinstance(content, str):
+                event["malformed_output"] = content
+            raise
+        try:
+            result = validate_model_decision(decision, retrieval)
+        except GenerationValidationError as error:
+            event["validation_error"] = str(error)
+            return decision, None, str(error)
+        event["validated"] = True
+        return decision, result, None
+
+    def select(result: AnswerResult, index: int = -1) -> AnswerResult:
+        if trace is not None:
+            trace[index]["selected"] = True
+        return result
+
     messages = build_generation_messages(retrieval)
     structured = _structured_model(model)
+
+    def invoke(input: Any, purpose: str) -> Any:
+        try:
+            return structured.invoke(input)
+        except Exception:
+            if trace is not None:
+                trace.append({"purpose": purpose, "received": None,
+                              "provider_error": "Falha na invocação do provedor.",
+                              "selected": False})
+            raise
     try:
-        raw = structured.invoke(messages)
+        raw = invoke(messages, "initial")
     except Exception as error:
         raise GenerationProviderError("O provedor não conseguiu gerar a resposta.") from error
-    decision = _normalize_abstention(parse_model_decision(raw))
-    try:
-        first_result = validate_model_decision(decision, retrieval)
-    except GenerationValidationError as validation_error:
+    decision, first_result, validation_error = interpret(raw, "initial")
+    if first_result is None:
         correction_messages = [
             *messages,
             AIMessage(content=decision.model_dump_json()),
@@ -106,13 +146,15 @@ def generate_answer(retrieval: RetrievalResult, model: InvokableModel) -> Answer
             ),
         ]
         try:
-            raw = structured.invoke(correction_messages)
+            raw = invoke(correction_messages, "correction")
         except Exception as error:
             raise GenerationProviderError(
                 "O provedor não conseguiu corrigir a resposta inválida."
             ) from error
-        corrected_decision = _normalize_abstention(parse_model_decision(raw))
-        return validate_model_decision(corrected_decision, retrieval)
+        corrected_decision, corrected_result, _ = interpret(raw, "correction")
+        if corrected_result is None:
+            return validate_model_decision(corrected_decision, retrieval)
+        return select(corrected_result)
     if decision.status.value == "insufficient_evidence":
         review_messages = [
             *messages,
@@ -123,19 +165,22 @@ def generate_answer(retrieval: RetrievalResult, model: InvokableModel) -> Answer
                     "recuperados: verifique condições cumulativas, respostas negativas "
                     "diretas e partes sustentadas. Use partial se apenas parte puder ser "
                     "respondida. Regras complementares não são conflito. Mantenha "
-                    "insufficient_evidence se nenhum trecho sustentar uma resposta."
+                    "insufficient_evidence se nenhum trecho sustentar uma resposta. "
+                    "Uma resposta negativa documentada é supported, não partial. "
+                    "Se não há parte solicitada sem suporte, use supported com "
+                    "unsupported_parts vazio; partial exige descrever a parte ausente."
                 )
             ),
         ]
         try:
-            raw = structured.invoke(review_messages)
+            raw = invoke(review_messages, "abstention_review")
         except Exception as error:
             raise GenerationProviderError(
                 "O provedor não conseguiu revisar a resposta."
             ) from error
-        try:
-            revised_decision = _normalize_abstention(parse_model_decision(raw))
+        revised_decision, revised_result, _ = interpret(raw, "abstention_review")
+        if revised_result is None:
+            # Invalid second output is a technical error, not evidence absence.
             return validate_model_decision(revised_decision, retrieval)
-        except GenerationValidationError:
-            return first_result
-    return first_result
+        return select(revised_result)
+    return select(first_result)

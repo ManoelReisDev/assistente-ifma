@@ -1,6 +1,7 @@
 """Recuperação rastreável de evidências no índice ativo, sem chamar um LLM."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from datetime import date
 import re
 import unicodedata
 from typing import Any
@@ -30,7 +31,7 @@ class ContextNotCoveredError(ValueError):
 
 @dataclass(frozen=True, slots=True)
 class RetrievalContext:
-    institution: str | None = None
+    institution: str | None = "IFMA"
     course_level: str | None = None
     campus: str | None = None
     modality: str | None = None
@@ -47,6 +48,11 @@ class RetrievedEvidence:
     excerpt: str
     is_primary: bool
     distance: float | None
+    publication_date: str | None = None
+    precedence_group: str | None = None
+
+    def __post_init__(self) -> None:
+        validate_precedence_metadata(self.publication_date, self.precedence_group)
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,6 +65,51 @@ class RetrievalResult:
     @property
     def source_map(self) -> dict[str, RetrievedEvidence]:
         return {evidence.source_id: evidence for evidence in self.evidences}
+
+    @property
+    def superseded_source_ids(self) -> frozenset[str]:
+        """Descarta versões anteriores somente em grupos integralmente datados."""
+        return _superseded_versions({
+            item.source_id: (item.publication_date, item.precedence_group)
+            for item in self.evidences
+        })
+
+
+def _superseded_versions(versions: dict[str, tuple[str | None, str | None]]) -> frozenset[str]:
+    groups: dict[str, dict[str, str | None]] = {}
+    for identifier, (published, group) in versions.items():
+        if group:
+            groups.setdefault(group, {})[identifier] = published
+    superseded = set()
+    for items in groups.values():
+        if any(published is None for published in items.values()):
+            continue
+        latest = max(published for published in items.values() if published is not None)
+        superseded.update(identifier for identifier, published in items.items()
+                          if published is not None and published < latest)
+    return frozenset(superseded)
+
+
+def validate_precedence_metadata(publication_date: Any, precedence_group: Any) -> None:
+    """Valida metadados curados; não infere data ou substituição pelo texto."""
+    if publication_date is not None:
+        if not isinstance(publication_date, str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", publication_date):
+            raise RetrievalError("publication_date deve usar uma data válida no formato YYYY-MM-DD.")
+        try:
+            date.fromisoformat(publication_date)
+        except ValueError as error:
+            raise RetrievalError("publication_date contém uma data inválida.") from error
+    if precedence_group is not None and (
+        not isinstance(precedence_group, str) or not precedence_group.strip()
+    ):
+        raise RetrievalError("precedence_group deve ser um identificador não vazio.")
+
+
+def resolve_context(context: RetrievalContext) -> RetrievalContext:
+    """Assume IFMA quando omitido; outros dados acadêmicos continuam explícitos."""
+    if not context.institution or not context.institution.strip():
+        return replace(context, institution="IFMA")
+    return context
 
 
 def _normalized(value: str) -> str:
@@ -93,9 +144,8 @@ def _matches_optional(document_value: Any, requested_value: str | None) -> bool:
 def _resolve_scope(
     settings: Settings, context: RetrievalContext
 ) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    context = resolve_context(context)
     missing = []
-    if not context.institution or not context.institution.strip():
-        missing.append("instituição")
     if not context.course_level or not context.course_level.strip():
         missing.append("nível do curso")
     if missing:
@@ -109,10 +159,13 @@ def _resolve_scope(
         "instituto federal do maranhao",
     }:
         requested_institution = "ifma"
+    if requested_institution != "ifma":
+        raise ContextNotCoveredError("Este assistente atende exclusivamente ao IFMA.")
 
     selected = load_corpus_selection(settings)
     applicable = []
-    limitations = []
+    limitations_by_id = {}
+    group_scopes: dict[str, tuple[str, ...]] = {}
     for document_id, document in selected.items():
         institution_id = _institution_id(document)
         course_level = document.get("course_level")
@@ -128,16 +181,41 @@ def _resolve_scope(
             continue
         if not _matches_optional(document.get("modality"), context.modality):
             continue
+        validate_precedence_metadata(document.get("publication_date"), document.get("precedence_group"))
+        group = document.get("precedence_group")
+        if group:
+            scope = (
+                institution_id, _normalized(course_level),
+                _normalized(document.get("campus") or ""),
+                _normalized(document.get("modality") or ""),
+            )
+            if group in group_scopes and group_scopes[group] != scope:
+                raise RetrievalError("Grupo de precedência mistura escopos; revise o inventário.")
+            group_scopes[group] = scope
         applicable.append(document_id)
         limitation = document.get("applicability_limits")
         if isinstance(limitation, str) and limitation.strip():
-            limitations.append(f"{document_id}: {limitation.strip()}")
+            limitations_by_id[document_id] = f"{document_id}: {limitation.strip()}"
 
     if not applicable:
         raise ContextNotCoveredError(
             "Os documentos cadastrados não cobrem o contexto informado."
         )
-    return tuple(sorted(applicable)), tuple(dict.fromkeys(limitations))
+    superseded = _superseded_versions({
+        document_id: (selected[document_id].get("publication_date"), selected[document_id].get("precedence_group"))
+        for document_id in applicable
+    })
+    current = [document_id for document_id in applicable if document_id not in superseded]
+    limitations = [value for key, value in limitations_by_id.items() if key in current]
+    replaced_groups = {selected[key]["precedence_group"] for key in superseded}
+    for document_id in current:
+        document = selected[document_id]
+        if document.get("precedence_group") in replaced_groups:
+            limitations.append(
+                f"Fonte priorizada: {document.get('document_name', document_id)} "
+                f"({document['publication_date']}), por ser a versão mais recente do grupo revisado."
+            )
+    return tuple(sorted(current)), tuple(dict.fromkeys(limitations))
 
 
 def applicable_document_ids(
@@ -230,7 +308,9 @@ def retrieve_evidence(
     """Busca evidências e atribui IDs apenas a trechos reais do índice."""
     if not question or not question.strip():
         raise ValueError("A pergunta não pode ser vazia.")
+    context = resolve_context(context)
     document_ids, limitations = _resolve_scope(settings, context)
+    inventory = load_corpus_selection(settings)
     try:
         matches = loaded.store.similarity_search_with_score(
             question.strip(),
@@ -278,6 +358,8 @@ def retrieve_evidence(
             excerpt=document.page_content,
             is_primary=is_primary,
             distance=distance,
+            publication_date=inventory[document.metadata["document_id"]].get("publication_date"),
+            precedence_group=inventory[document.metadata["document_id"]].get("precedence_group"),
         )
         for position, (document, is_primary, distance) in enumerate(ordered, start=1)
     )

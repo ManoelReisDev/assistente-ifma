@@ -160,9 +160,9 @@ def test_missing_or_uncovered_context_stops_before_vector_search(tmp_path: Path)
     settings, loaded, embeddings = prepare_index(tmp_path)
     calls_before = embeddings.query_calls
 
-    with pytest.raises(ContextRequiredError, match="instituição"):
+    with pytest.raises(ContextRequiredError, match="nível do curso"):
         retrieve_evidence("Pergunta fictícia", loaded, settings, RetrievalContext())
-    with pytest.raises(ContextNotCoveredError, match="não cobrem"):
+    with pytest.raises(ContextNotCoveredError, match="exclusivamente ao IFMA"):
         retrieve_evidence(
             "Pergunta fictícia",
             loaded,
@@ -191,3 +191,52 @@ def test_retrieval_without_neighbors_respects_top_k(tmp_path: Path) -> None:
 
     assert len(result.evidences) == 2
     assert all(item.is_primary for item in result.evidences)
+
+
+@pytest.mark.parametrize("institution", [None, "", "IFMA"])
+def test_retrieval_assumes_ifma_and_preserves_other_scope_filters(tmp_path, institution):
+    settings, loaded, _ = prepare_index(tmp_path)
+    result = retrieve_evidence("Regra geral fictícia.", loaded, settings,
+                               RetrievalContext(institution=institution, course_level="graduação"))
+    assert result.context.institution == "IFMA"
+    assert {item.document_id for item in result.evidences} == {"geral.pdf"}
+
+
+def test_precedence_metadata_comes_from_inventory_without_reindexing(tmp_path):
+    settings, loaded, _ = prepare_index(tmp_path)
+    corpus = json.loads(settings.corpus_file.read_text())
+    corpus["documents"][0].update(publication_date="2025-01-01", precedence_group="norma-geral")
+    settings.corpus_file.write_text(json.dumps(corpus))
+    result = retrieve_evidence("Regra geral fictícia.", loaded, settings,
+                               RetrievalContext(course_level="graduação"))
+    assert all(e.publication_date == "2025-01-01" for e in result.evidences)
+    assert all(e.precedence_group == "norma-geral" for e in result.evidences)
+
+
+def test_precedence_group_cannot_replace_general_rule_with_campus_rule(tmp_path):
+    settings, loaded, embeddings = prepare_index(tmp_path)
+    corpus = json.loads(settings.corpus_file.read_text())
+    for item in corpus["documents"]:
+        item.update(publication_date="2025-01-01", precedence_group="grupo-incoerente")
+    settings.corpus_file.write_text(json.dumps(corpus))
+    from academic_assistant.retrieval import RetrievalError
+    before = embeddings.query_calls
+    with pytest.raises(RetrievalError, match="mistura escopos"):
+        retrieve_evidence("Pergunta", loaded, settings,
+                          RetrievalContext(course_level="graduação", campus="Campus Norte"))
+    assert embeddings.query_calls == before
+
+
+def test_latest_version_is_filtered_before_search_even_when_old_text_matches_better(tmp_path):
+    settings, loaded, _ = prepare_index(tmp_path)
+    corpus = json.loads(settings.corpus_file.read_text())
+    old, new = corpus["documents"]
+    new.pop("campus", None)
+    old.update(publication_date="2020-01-01", precedence_group="mesmo-escopo")
+    new.update(publication_date="2025-01-01", precedence_group="mesmo-escopo")
+    settings.corpus_file.write_text(json.dumps(corpus))
+    result = retrieve_evidence("Regra geral fictícia.", loaded, settings,
+                               RetrievalContext(course_level="graduação"))
+    assert {item.document_id for item in result.evidences} == {"campus.pdf"}
+    assert any("Fonte priorizada: campus.pdf (2025-01-01)" in value for value in result.limitations)
+    assert not any(value.startswith("geral.pdf:") for value in result.limitations)

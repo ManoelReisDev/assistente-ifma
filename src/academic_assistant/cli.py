@@ -44,7 +44,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     ask = commands.add_parser("ask", help="Consultar o índice ativo com fontes.")
     ask.add_argument("question", help="Pergunta em linguagem natural.")
-    ask.add_argument("--institution", help="Instituição aplicável, por exemplo IFMA.")
+    ask.add_argument("--institution", default="IFMA", help="Instituição aplicável (padrão e escopo: IFMA).")
     ask.add_argument("--course-level", help="Nível do curso, por exemplo graduação.")
     ask.add_argument("--campus", help="Campus aplicável, quando informado.")
     ask.add_argument("--modality", help="Modalidade aplicável, quando informada.")
@@ -106,6 +106,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--reviews", type=Path, default=Path("evaluation/reviews.local.json"),
         help="Decisões humanas por caso.",
     )
+    review.add_argument("--output", type=Path, help="Destino separado para o relatório revisado.")
     merge = commands.add_parser(
         "evaluate-merge", help="Consolidar a repetição de casos que falharam."
     )
@@ -117,6 +118,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--retry", type=Path, required=True,
         help="Relatório compatível produzido com --only-case.",
     )
+    merge.add_argument("--output", type=Path, help="Destino separado para o relatório consolidado.")
     return parser
 
 
@@ -248,7 +250,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         from academic_assistant.evaluation import EvaluationError, apply_manual_reviews
 
         try:
-            report = apply_manual_reviews(args.report, args.reviews)
+            report = apply_manual_reviews(args.report, args.reviews, args.output)
         except EvaluationError as error:
             print(f"Erro de avaliação: {error}", file=sys.stderr)
             return 1
@@ -263,7 +265,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         from academic_assistant.evaluation import EvaluationError, merge_retry_report
 
         try:
-            report = merge_retry_report(args.report, args.retry)
+            report = merge_retry_report(args.report, args.retry, args.output)
         except EvaluationError as error:
             print(f"Erro de avaliação: {error}", file=sys.stderr)
             return 1

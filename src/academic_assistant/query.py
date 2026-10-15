@@ -13,6 +13,7 @@ from academic_assistant.retrieval import (
     RetrievalContext,
     applicable_document_ids,
     retrieve_from_active_index,
+    resolve_context,
 )
 from academic_assistant.validation import AnswerResult, insufficient_evidence_result
 
@@ -29,6 +30,7 @@ def answer_question(
     if not question or not question.strip():
         raise ValueError("A pergunta não pode ser vazia.")
     active_settings = settings or Settings()
+    context = resolve_context(context)
     applicable_document_ids(active_settings, context)
     active_embeddings = embeddings or create_embeddings(active_settings)
     retrieval = retrieve_from_active_index(

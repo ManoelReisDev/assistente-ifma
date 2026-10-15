@@ -168,7 +168,7 @@ def test_query_checks_context_before_creating_embeddings(monkeypatch) -> None:
         lambda _: (_ for _ in ()).throw(AssertionError("embedding não deveria ser criado")),
     )
 
-    with pytest.raises(ContextRequiredError, match="instituição"):
+    with pytest.raises(ContextRequiredError, match="nível do curso"):
         answer_question(
             "Pergunta fictícia",
             RetrievalContext(),
@@ -191,3 +191,13 @@ def test_query_rejects_empty_question_before_external_setup(monkeypatch) -> None
             RetrievalContext(institution="IFMA", course_level="graduação"),
             Settings(),
         )
+
+
+def test_query_with_course_level_uses_ifma_without_institution(tmp_path):
+    settings, _ = make_persisted_index(tmp_path)
+    model = FakeModel({"status": "supported", "answer": "Pedido fictício em cinco dias.",
+                       "source_ids": ["1"], "unsupported_parts": []})
+    result = answer_question("Qual o prazo fictício?", RetrievalContext(course_level="graduação"),
+                             settings, embeddings=DeterministicEmbeddings(), model=model)
+    assert result.status is AnswerStatus.SUPPORTED
+    assert model.calls == 1
