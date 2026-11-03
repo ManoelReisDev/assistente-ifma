@@ -21,6 +21,11 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest>=8,<9",
+    "httpx>=0.28,<1",
+]
+web = [
+    "fastapi>=0.115,<1",
+    "uvicorn>=0.34,<1",
 ]
 
 [tool.pytest.ini_options]
@@ -28,3 +33,6 @@ testpaths = ["tests"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+academic_assistant = ["static/*", "static/assets/*"]

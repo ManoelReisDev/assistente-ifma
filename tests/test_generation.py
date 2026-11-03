@@ -374,7 +374,7 @@ def test_create_chat_model_requires_key_and_uses_nvidia_configuration(monkeypatc
 
     assert isinstance(result, FakeChatNVIDIA)
     assert captured == {
-        "model": "nvidia/nemotron-3-super-120b-a12b",
+        "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
         "temperature": 0.0,
         "top_p": 0.95,
         "max_completion_tokens": 1_024,

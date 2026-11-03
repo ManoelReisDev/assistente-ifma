@@ -9,6 +9,8 @@ __pycache__/
 *.egg-info/
 build/
 dist/
+.playwright-cli/
+output/playwright/
 .skill-index
 
 # Dados locais e artefatos gerados

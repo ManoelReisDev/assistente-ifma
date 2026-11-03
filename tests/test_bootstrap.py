@@ -35,7 +35,7 @@ class SettingsTests(unittest.TestCase):
                 self.assertEqual(settings.retrieval_max_chunks, 12)
                 self.assertEqual(settings.llm_provider, "nvidia")
                 self.assertEqual(
-                    settings.llm_model, "nvidia/nemotron-3-super-120b-a12b"
+                    settings.llm_model, "nvidia/nemotron-3.5-super-vl-120b-a12b"
                 )
                 self.assertEqual(settings.llm_temperature, 0.0)
                 self.assertEqual(settings.llm_top_p, 0.95)

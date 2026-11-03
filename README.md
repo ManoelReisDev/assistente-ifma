@@ -7,11 +7,11 @@ Regulamentos extensos, linguagem formal, informações distribuídas entre artig
 O assistente apoia a consulta; não certifica a vigência das normas nem substitui os documentos ou os setores responsáveis. Para desenvolvedores, este README descreve o fluxo implementado, suas decisões, como reproduzi-lo e como avaliar a fidelidade das respostas.
 
 > [!IMPORTANT]
-> O fluxo completo está implementado pela CLI, mas a avaliação com o modelo real encontrou falhas semânticas. Citações estruturalmente válidas e recuperação correta não garantem uma conclusão correta. As limitações e os resultados estão documentados abaixo.
+> O fluxo completo está implementado pela CLI e tem uma interface web local de consulta. A avaliação com o modelo real encontrou falhas semânticas. Citações estruturalmente válidas e recuperação correta não garantem uma conclusão correta. As limitações e os resultados estão documentados abaixo.
 
 ## 1. Escopo e estado atual
 
-Documentação conferida contra código, lockfile, testes e artefatos locais disponíveis em **14 de outubro de 2026**, versão `0.1.0`. As especificações preservam o histórico; seus escopos antigos não representam necessariamente o comportamento atual.
+Documentação do núcleo conferida contra código, lockfile, testes e artefatos locais disponíveis em **14 de outubro de 2026**, versão `0.1.0`; interface web acrescentada em **20 de outubro de 2026**. As especificações preservam o histórico; seus escopos antigos não representam necessariamente o comportamento atual.
 
 | Capacidade | Estado e evidência |
 | --- | --- |
@@ -22,10 +22,11 @@ Documentação conferida contra código, lockfile, testes e artefatos locais dis
 | Filtrar fontes por contexto acadêmico | Implementada em `retrieval.py`: instituição, nível, campus e modalidade |
 | Gerar resposta e apresentar fontes | Implementada em `generation.py`, `validation.py` e CLI `ask` |
 | Resposta parcial, conflito e abstenção | Contratos implementados; classificação semântica depende do modelo |
-| Testes offline e avaliação com modelo real | Implementados; 148 testes offline passaram; correções pós-revisão verificadas em seis casos reais/sintéticos |
+| Testes offline e avaliação com modelo real | Implementados; 170 testes offline passaram com a interface web; correções pós-revisão do núcleo verificadas em seis casos reais/sintéticos |
 | Verificar vigência, revogação ou período letivo | Não implementado; hash identifica conteúdo, não validade normativa |
 | OCR integrado, busca híbrida e reranking | Não implementados |
-| Interface web, API, autenticação e histórico de conversa | Não implementados; interface atual é uma consulta por comando |
+| Interface web e API locais | Chat em FastAPI + HTML/CSS/JavaScript, com contexto acadêmico e fontes por resposta; veja seção 12 |
+| Autenticação e memória conversacional | Não implementadas; histórico visual temporário, perguntas independentes |
 
 As SPEC-001 a SPEC-012 estão registradas como concluídas, com as limitações semânticas da avaliação. A [SPEC-013 — Proveniência da avaliação e regressões semânticas](specs/013-proveniencia-e-regressoes-semanticas.md) está em validação: a regressão anterior foi revisada por Manoel, as duas mudanças de produto foram implementadas e uma nova regressão integral concluiu 21 casos, com repetição de duas falhas do provedor. A revisão humana dessa nova regressão ainda está pendente. As demais evoluções da seção 14 continuam propostas.
 
@@ -52,7 +53,7 @@ Um LLM é um modelo treinado em grandes coleções de texto para aprender padrõ
 
 Um modelo isolado pode desconhecer um regulamento institucional, ter aprendido uma versão anterior ou produzir uma resposta plausível baseada em outras instituições. Fluência não comprova origem, vigência ou correção: a geração pode introduzir fatos sem suporte, fenômeno frequentemente chamado de alucinação. A distinção entre conhecimento paramétrico e memória documental externa é discutida no [trabalho de Lewis et al. sobre RAG](https://arxiv.org/abs/2005.11401).
 
-Neste projeto, `create_chat_model()` configura `ChatNVIDIA` com `nvidia/nemotron-3-super-120b-a12b`. O modelo redige uma decisão estruturada a partir dos dados de `build_generation_messages()`. Não é treinado com os PDFs e não escolhe caminhos de execução. `temperature=0.0` reduz variação na amostragem, mas não prova fidelidade, determinismo absoluto ou ausência de alucinações.
+Neste projeto, `create_chat_model()` configura `ChatNVIDIA` com `nvidia/nemotron-3.5-super-vl-120b-a12b` (desde 20/10/2026; os relatórios históricos usaram `nvidia/nemotron-3-super-120b-a12b`). O modelo redige uma decisão estruturada a partir dos dados de `build_generation_messages()`. A aplicação envia apenas texto, mesmo que o novo modelo também aceite outras modalidades. Não é treinado com os PDFs e não escolhe caminhos de execução. `temperature=0.0` reduz variação na amostragem, mas não prova fidelidade, determinismo absoluto ou ausência de alucinações.
 
 ### 2.2. RAG: recuperar antes de responder
 
@@ -580,10 +581,61 @@ Repita carregamento em cada terminal. Não imprima/versione a chave; alternativa
 | `embedding_provider` / `embedding_model` | `nvidia` / `nvidia/nemotron-3-embed-1b` |
 | `embedding_dimensions` / `collection_name` | 2.048 / `academic-regulations` |
 | `retrieval_k` / `retrieval_page_window` / `retrieval_max_chunks` | 4 / 1 / 12 |
-| `llm_provider` / `llm_model` | `nvidia` / `nvidia/nemotron-3-super-120b-a12b` |
+| `llm_provider` / `llm_model` | `nvidia` / `nvidia/nemotron-3.5-super-vl-120b-a12b` |
 | `llm_temperature` / `llm_top_p` / `llm_max_tokens` | 0.0 / 0.95 / 1.024 |
 
 Não há variáveis `CHUNK_SIZE`, `MODEL` ou equivalentes. Caminhos são flags; demais parâmetros, `Settings` no núcleo. Mudar modelo/dimensão de embeddings, coleção ou divisão torna índice incompatível. Modelo de geração não participa da compatibilidade, mas sua mudança exige nova avaliação.
+
+### Interface web local
+
+Instale também o extra `web` e inicie o servidor **a partir da raiz do projeto**:
+
+```bash
+uv sync --locked --extra dev --extra web
+set -a
+source .env
+set +a
+uv run --locked --extra web uvicorn academic_assistant.web:app --host 127.0.0.1 --port 8000
+```
+
+Abra [http://127.0.0.1:8000](http://127.0.0.1:8000) no navegador. Encerre com Ctrl+C. O servidor usa `Settings()` com os mesmos caminhos, modelos e índice da CLI. Não realiza ingestão, indexação nem chamadas ao modelo ao abrir a página. O inventário e o índice precisam ter sido preparados conforme as instruções abaixo; o checkout novo não os contém. A interface pode abrir sem credencial, mas consultar o provedor requer `NVIDIA_API_KEY` no ambiente do servidor. `.env` continua sem carregamento automático.
+
+Selecione explicitamente o nível do curso; campus e modalidade são opcionais. As opções são lidas dos metadados dos documentos selecionados no inventário. Campos sem opções cadastradas ficam desabilitados. A ausência de metadados não comprova cobertura de todos os contextos: os filtros e as limitações do núcleo continuam aplicáveis. Envie uma pergunta completa usando o botão “Perguntar” ou Enter; Shift+Enter insere uma quebra de linha. As sugestões iniciais apenas preenchem o campo.
+
+O chat apresenta a resposta validada e, abaixo, cada fonte com nome do documento, página física do PDF e excerto literal. As referências levam ao respectivo trecho na mesma resposta. Respostas parciais, conflitos e falta de evidência recebem rótulos próprios. Falhas técnicas aparecem como erros com opção de repetir a consulta, sem serem convertidas em falta de evidência. A interface aceita perguntas de até 4.000 caracteres.
+
+Cada pergunta é independente: mensagens anteriores **não são enviadas ao modelo**. O histórico visual fica somente na memória da página, sem cookies, armazenamento local ou banco de conversas. Recarregar ou clicar em “Limpar conversa” descarta as mensagens exibidas. Cada pergunta registra visualmente o contexto utilizado, mesmo que os seletores sejam alterados depois.
+
+A página e seus recursos são locais, sem CDN ou fontes externas. A chave permanece no servidor. A consulta continua enviando a pergunta ao serviço de embeddings NVIDIA e pergunta/trechos recuperados à geração NVIDIA, como no fluxo CLI. PDFs completos não são disponibilizados pela web. Não há upload, administração, login, streaming ou publicação. O endereço de escuta padrão documentado é apenas loopback; esta entrega não prepara acesso pela internet ou rede interna.
+
+**API local:**
+
+| Rota | Contrato |
+| --- | --- |
+| `GET /api/context` | Retorna `institution`, `course_levels`, `campuses` e `modalities` do inventário selecionado; não verifica a disponibilidade do modelo ou do índice |
+| `POST /api/ask` | Recebe `question` e `context` (`institution: "IFMA"`, `course_level` obrigatório, `campus`/`modality` opcionais); chama `answer_question()` |
+| Resposta de consulta | `answer`, `status` e `sources`, preservando `source_id`, `document_id`, `document_name`, `page_number`, `chunk_id` e `excerpt` do núcleo |
+| Erros | `{ "error": { "code": "...", "message": "..." } }`; HTTP 422 para entrada/contexto inválido, 503 para configuração/índice indisponível, 502 para falha na busca/provedor ou geração inválida |
+
+Respostas da API usam `Cache-Control: no-store`. Perguntas e trechos são renderizados como texto, sem executar HTML/Markdown do modelo. O servidor não registra corpos de consulta por padrão. A UI não modifica os prompts, as políticas de aplicabilidade, a precedência documental ou os validadores existentes.
+
+**Identidade visual:** composição clara com verde nos controles, marca vetorial do IFMA preservada e fontes documentais junto das respostas. A origem e os créditos do SVG estão em [assets/README.md](src/academic_assistant/static/assets/README.md). A interface é identificada como projeto acadêmico; não certifica vínculo oficial nem conformidade integral com o manual institucional atual.
+
+Para executar também os testes HTTP offline:
+
+```bash
+uv run --locked --extra dev --extra web pytest
+```
+
+Os testes injetam funções de consulta, modelos e embeddings locais, inclusive uma integração HTTP com índice sintético persistido. Sem o extra `web`, o módulo de testes HTTP é pulado; os testes do núcleo continuam disponíveis. Testes simulados não demonstram qualidade semântica do modelo real; uma conferência manual com o provedor é uma etapa separada.
+
+**Verificação em 20/10/2026:** 170 testes offline passaram com os extras `dev` e `web`; sintaxe JavaScript, consistência do lockfile e construção do wheel foram verificadas. O wheel contém HTML, CSS, JavaScript, SVG e créditos, sem corpus nem índice. No navegador, respostas fictícias verificaram envio por Enter, quebra de linha, seleção explícita do nível, sugestões sem envio automático, bloqueio de duplicatas, citações com foco na fonte, HTML tratado como texto, estados parcial/conflito/abstenção, erro técnico, repetição, limpeza e recarga sem histórico. Os layouts foram conferidos em 1280×720, 390×844 e 320×740, sem rolagem horizontal.
+
+As tentativas reais iniciais foram separadas: a pergunta coberta sobre frequência falhou na geração (HTTP 502, `provider_failed`), inclusive em uma repetição técnica; a pergunta de segunda chamada do caso IFMA-015, cuja expectativa revisada é abstenção, falhou na recuperação (HTTP 502, `retrieval_failed`). O chat apresentou esses erros corretamente. Nessa etapa, não foi possível validar respostas reais com fontes ou abstenção, e não houve alteração de modelo, prompt, documentos ou índice.
+
+O diagnóstico posterior confirmou embeddings com HTTP 200 e geração com HTTP 404, “Not found for account”, usando o modelo antigo, inclusive após a troca da chave. Os candidatos `nvidia/nemotron-3.5-lightning-30b-a3b` e `nvidia/nemotron-3.5-super-vl-120b-a12b` responderam com HTTP 200 e passaram pelo esquema JSON e pelo validador do núcleo em uma consulta inteiramente fictícia por modelo. O padrão de geração foi então alterado para o **Super VL 3.5**, mantendo embeddings, índice e prompts. Isso não exige reindexação. Os resultados de avaliação do modelo antigo não validam o novo: a regressão semântica integral permanece pendente.
+
+Após a troca, 72 testes focados de configuração, geração e HTTP passaram. Duas consultas reais por `POST /api/ask` concluíram com HTTP 200: frequência recebeu `supported`, com fontes em `doc3.pdf` (página física 20) e `doc4.pdf` (página física 22), cujos excertos foram comparados ao texto extraído das respectivas páginas; a pergunta sobre o prazo de segunda chamada recebeu `insufficient_evidence`, com a mensagem padrão e sem fontes. Essa conferência comprova o funcionamento da integração com o novo modelo nesses dois casos, sem substituir a regressão semântica completa.
 
 ### Documentos e inventário
 
@@ -869,7 +921,7 @@ Sem novas chamadas NVIDIA para indexação/consulta/avaliação. Comandos corres
 | Fontes ao final e sobrecitação | Associação por afirmação e revisão de fontes | Contrato/avaliação mais complexos |
 | Reconstrução integral/versões acumuladas | Incremental, retenção e rollback explícito | Mais estados/testes de consistência |
 | API externa/contexto sem orçamento próprio | Medir tokens/latência e limitar contexto/chamadas | Cortar contexto pode perder evidência |
-| CLI sem controle de acesso | Interface acessível e autenticação quando necessária | Operação, privacidade e manutenção |
+| CLI e web local sem controle de acesso | Autenticação quando houver necessidade de acesso remoto | Operação, privacidade e manutenção |
 | Avaliação pequena e dados reais locais | Corpus público autorizado e experimentos repetidos | Curadoria, custo e licenças/dados |
 
 Não há comprovação de embedder ótimo para normas em português, nem de corpus completo. Filtros reduzem mistura de contexto, mas curso específico, regime, versão e período não são resolvidos automaticamente. Similaridade, número de fontes e temperatura baixa não certificam confiabilidade.

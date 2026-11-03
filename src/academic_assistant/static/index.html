@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Consulte os regulamentos acadêmicos cadastrados do IFMA e confira as fontes de cada resposta.">
+  <title>Assistente de regulamentos · IFMA</title>
+  <link rel="icon" href="/static/assets/ifma.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/styles.css">
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#question">Ir para a pergunta</a>
+  <header class="site-header">
+    <img class="brand" src="/static/assets/ifma.svg" width="256" height="72" alt="Instituto Federal do Maranhão">
+    <span class="header-divider" aria-hidden="true"></span>
+    <span class="header-title">Assistente de<br><strong>regulamentos acadêmicos</strong></span>
+    <span class="project-label">Projeto acadêmico</span>
+  </header>
+
+  <div class="app-layout">
+    <aside class="sidebar" aria-label="Configurações da consulta">
+      <details id="context-panel" open>
+        <summary>Seu contexto acadêmico <span aria-hidden="true">⌄</span></summary>
+        <div class="context-content">
+          <p class="sidebar-intro">Informe onde você estuda para consultar os documentos aplicáveis.</p>
+          <div class="institution"><span class="field-label">Instituição</span><strong>IFMA</strong></div>
+          <label for="course-level">Nível do curso <span class="required-label">obrigatório</span></label>
+          <select id="course-level" required disabled><option value="">Selecione o nível</option></select>
+          <label for="campus">Campus <span class="optional-label">opcional</span></label>
+          <select id="campus" disabled><option value="">Não informado</option></select>
+          <label for="modality">Modalidade <span class="optional-label">opcional</span></label>
+          <select id="modality" disabled><option value="">Não informada</option></select>
+          <p class="field-help">As opções vêm dos documentos cadastrados. Informar campus e modalidade ajuda a delimitar a consulta.</p>
+          <p id="context-error" class="context-error" role="alert" hidden></p>
+          <button id="retry-context" class="text-button" type="button" hidden>Recarregar opções</button>
+        </div>
+      </details>
+      <div class="sidebar-bottom">
+        <button id="clear-chat" class="secondary-button" type="button" disabled><span aria-hidden="true">↺</span> Limpar conversa</button>
+        <div class="reading-note"><span class="note-line" aria-hidden="true"></span><p>Da pergunta<br>ao documento.</p><small>Cada resposta vem acompanhada dos trechos usados na consulta.</small></div>
+        <span class="local-label"><span aria-hidden="true"></span> Sessão local · sem histórico salvo</span>
+      </div>
+    </aside>
+
+    <main id="main-content" class="workspace">
+      <div class="workspace-top"><span>CONSULTA AOS DOCUMENTOS</span><span class="evidence-tag">Respostas com fontes</span></div>
+      <section id="welcome" class="welcome" aria-labelledby="welcome-title">
+        <div class="welcome-mark" aria-hidden="true"><svg viewBox="0 0 40 40" fill="none"><path d="M8 7h15l8 8v18H8zM23 7v9h8M14 22h11M14 27h8"/></svg></div>
+        <p class="eyebrow">REGULAMENTOS ACADÊMICOS · IFMA</p>
+        <h1 id="welcome-title">Sua dúvida merece<br>uma fonte.</h1>
+        <p class="welcome-description">Pergunte sobre a vida acadêmica em linguagem simples. Consulte a resposta e confira os trechos dos documentos que a sustentam.</p>
+        <div class="suggestions" aria-label="Sugestões de perguntas">
+          <button type="button" class="suggestion" data-question="Qual é a frequência mínima exigida nas disciplinas?"><span class="suggestion-topic">Frequência</span><span>Qual é a frequência mínima exigida?</span><span class="suggestion-arrow" aria-hidden="true">↗</span></button>
+          <button type="button" class="suggestion" data-question="Como posso solicitar a segunda chamada de uma avaliação?"><span class="suggestion-topic">Avaliações</span><span>Como solicitar uma segunda chamada?</span><span class="suggestion-arrow" aria-hidden="true">↗</span></button>
+          <button type="button" class="suggestion" data-question="Quais são as condições para trancar a matrícula?"><span class="suggestion-topic">Matrícula</span><span>Em quais situações posso trancar?</span><span class="suggestion-arrow" aria-hidden="true">↗</span></button>
+          <button type="button" class="suggestion" data-question="Como funciona o aproveitamento de disciplinas?"><span class="suggestion-topic">Disciplinas</span><span>Como pedir aproveitamento?</span><span class="suggestion-arrow" aria-hidden="true">↗</span></button>
+        </div>
+      </section>
+      <section id="messages" class="messages" aria-label="Perguntas e respostas"></section>
+      <div class="composer-area">
+        <p id="activity" class="activity" role="status" aria-live="polite"></p>
+        <form id="question-form" class="composer">
+          <label class="visually-hidden" for="question">Sua pergunta sobre regulamentos acadêmicos</label>
+          <textarea id="question" name="question" rows="2" maxlength="4000" required placeholder="O que você quer saber sobre os regulamentos?" aria-describedby="question-help"></textarea>
+          <div class="composer-bottom"><span>Enter envia <span aria-hidden="true">·</span> Shift + Enter quebra linha</span><button id="send" type="submit" disabled><span>Perguntar</span><svg aria-hidden="true" viewBox="0 0 20 20" fill="none"><path d="M10 15V5m-4 4 4-4 4 4"/></svg></button></div>
+        </form>
+        <p id="question-help" class="composer-help">Cada pergunta é independente. Inclua os detalhes necessários, mesmo que já tenham aparecido na conversa.</p>
+        <footer>O assistente apoia a consulta e pode cometer erros. Confira as fontes e, quando necessário, procure o setor acadêmico.</footer>
+      </div>
+    </main>
+  </div>
+  <noscript><p class="noscript">Ative o JavaScript do navegador para usar o assistente.</p></noscript>
+</body>
+</html>
