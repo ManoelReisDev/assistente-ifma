@@ -212,3 +212,107 @@ def test_api_runs_real_query_pipeline_offline(tmp_path):
     assert builder.document_calls == 1
     assert embeddings.document_calls == 0
     assert embeddings.query_calls == 3
+
+
+def test_default_rate_limit_blocks_before_calling_rag(settings):
+    calls = []
+
+    def answerer(*args):
+        calls.append(True)
+        return insufficient_evidence_result()
+
+    with TestClient(create_app(settings, answerer=answerer)) as client:
+        for _ in range(5):
+            assert client.post("/api/ask", json=payload()).status_code == 200
+        response = client.post("/api/ask", json=payload())
+
+    assert response.status_code == 429
+    assert response.json()["error"]["code"] == "rate_limited"
+    assert int(response.headers["retry-after"]) >= 1
+    assert response.headers["cache-control"] == "no-store"
+    assert "sources" not in response.json()
+    assert INSUFFICIENT_EVIDENCE_MESSAGE not in response.text
+    assert len(calls) == 5
+
+
+def test_rate_limit_persists_across_app_instances_and_ignores_forwarded_headers(settings):
+    def answerer(*args):
+        return insufficient_evidence_result()
+
+    with TestClient(create_app(settings, answerer=answerer)) as client:
+        for i in range(5):
+            response = client.post(
+                "/api/ask", json=payload(), headers={"X-Forwarded-For": f"192.0.2.{i}"}
+            )
+            assert response.status_code == 200
+
+    with TestClient(create_app(settings, answerer=answerer)) as client:
+        response = client.post(
+            "/api/ask", json=payload(), headers={"X-Forwarded-For": "198.51.100.1"}
+        )
+        assert response.status_code == 429
+        assert client.get("/").status_code == 200
+        assert client.get("/api/context").status_code == 200
+
+
+def test_provider_failures_also_consume_rate_limit(settings):
+    calls = []
+
+    def answerer(*args):
+        calls.append(True)
+        raise GenerationProviderError("Falha fictícia.")
+
+    with TestClient(create_app(settings, answerer=answerer)) as client:
+        for _ in range(5):
+            assert client.post("/api/ask", json=payload()).status_code == 502
+        assert client.post("/api/ask", json=payload()).status_code == 429
+
+    assert len(calls) == 5
+
+
+def test_rate_limit_storage_failure_blocks_rag(settings, monkeypatch):
+    monkeypatch.setenv("WEB_RATE_LIMIT_DB", str(settings.corpus_file / "invalid.sqlite3"))
+
+    def never_call(*args):
+        pytest.fail("Falha no contador não pode liberar chamada ao provedor.")
+
+    with TestClient(create_app(settings, answerer=never_call)) as client:
+        response = client.post("/api/ask", json=payload())
+
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "rate_limit_unavailable"
+    assert str(settings.corpus_file) not in response.text
+
+
+def test_web_rate_limits_can_be_configured_in_environment(settings, monkeypatch):
+    monkeypatch.setenv("WEB_RATE_LIMIT_IP_MINUTE", "1")
+    monkeypatch.setenv("WEB_RATE_LIMIT_IP_DAY", "2")
+    monkeypatch.setenv("WEB_RATE_LIMIT_GLOBAL_MINUTE", "2")
+    monkeypatch.setenv("WEB_RATE_LIMIT_GLOBAL_DAY", "3")
+
+    with TestClient(create_app(settings, answerer=lambda *args: insufficient_evidence_result())) as client:
+        assert client.post("/api/ask", json=payload()).status_code == 200
+        assert client.post("/api/ask", json=payload()).status_code == 429
+
+
+def test_global_daily_limit_applies_to_different_client_addresses(settings, monkeypatch):
+    monkeypatch.setenv("WEB_RATE_LIMIT_GLOBAL_DAY", "1")
+    calls = []
+
+    def answerer(*args):
+        calls.append(True)
+        return insufficient_evidence_result()
+
+    app = create_app(settings, answerer=answerer)
+    with TestClient(app, client=("192.0.2.1", 1234)) as client:
+        assert client.post("/api/ask", json=payload()).status_code == 200
+    with TestClient(app, client=("198.51.100.1", 5678)) as client:
+        assert client.post("/api/ask", json=payload()).status_code == 429
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize("value", ["0", "-1", "", "inválido"])
+def test_invalid_rate_limit_configuration_fails_at_startup(settings, monkeypatch, value):
+    monkeypatch.setenv("WEB_RATE_LIMIT_IP_MINUTE", value)
+    with pytest.raises(ValueError):
+        create_app(settings)

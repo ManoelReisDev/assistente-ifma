@@ -23,7 +23,8 @@ def launcher_project(tmp_path):
     python.write_text(f'#!/bin/sh\nexec {shlex.quote(sys.executable)} "$@"\n', encoding="utf-8")
     python.chmod(0o700)
     (root / ".env").write_text(
-        "NVIDIA_API_KEY=nvapi-chave-ficticia\nUNUSED=$(touch executado)\n", encoding="utf-8"
+        "NVIDIA_API_KEY=nvapi-chave-ficticia\nWEB_RATE_LIMIT_IP_MINUTE=2\n"
+        "UNUSED=$(touch executado)\n", encoding="utf-8"
     )
     stub = tmp_path / "stub"
     stub.mkdir()
@@ -31,11 +32,14 @@ def launcher_project(tmp_path):
         "import os, json\n"
         "def run(app, **kwargs):\n"
         "    assert os.environ['NVIDIA_API_KEY'] == os.environ['EXPECTED_KEY']\n"
+        "    assert os.environ['WEB_RATE_LIMIT_IP_MINUTE'] == os.environ['EXPECTED_LIMIT']\n"
         "    print(json.dumps(dict(app=app, cwd=os.getcwd(), **kwargs)))\n",
         encoding="utf-8",
     )
-    env = dict(os.environ, PYTHONPATH=str(stub), PORT="8123", EXPECTED_KEY="nvapi-chave-ficticia")
+    env = dict(os.environ, PYTHONPATH=str(stub), PORT="8123",
+               EXPECTED_KEY="nvapi-chave-ficticia", EXPECTED_LIMIT="2")
     env.pop("NVIDIA_API_KEY", None)
+    env.pop("WEB_RATE_LIMIT_IP_MINUTE", None)
     return root, env
 
 
@@ -44,6 +48,7 @@ def test_launcher_uses_project_root_dotenv_and_loopback(tmp_path, environment_ke
     root, env = launcher_project(tmp_path)
     if environment_key:
         env.update(NVIDIA_API_KEY=environment_key, EXPECTED_KEY=environment_key)
+        env.update(WEB_RATE_LIMIT_IP_MINUTE="3", EXPECTED_LIMIT="3")
 
     result = subprocess.run(
         ["bash", str(root / "scripts" / SCRIPT.name)], cwd=tmp_path, env=env,
@@ -52,7 +57,7 @@ def test_launcher_uses_project_root_dotenv_and_loopback(tmp_path, environment_ke
 
     assert json.loads(result.stdout) == {
         "app": "academic_assistant.web:app", "cwd": str(root),
-        "host": "127.0.0.1", "port": 8123, "access_log": False,
+        "host": "127.0.0.1", "port": 8123, "access_log": False, "proxy_headers": False,
     }
     assert not (root / "executado").exists()
     assert "nvapi-chave" not in result.stdout + result.stderr

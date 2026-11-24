@@ -15,6 +15,7 @@ from academic_assistant.config import Settings
 from academic_assistant.generation import GenerationError, GenerationProviderError
 from academic_assistant.indexing import IndexingError, load_corpus_selection
 from academic_assistant.query import answer_question
+from academic_assistant.rate_limit import RateLimiter, RateLimitSettings, RateLimitStorageError
 from academic_assistant.retrieval import (
     ContextNotCoveredError,
     ContextRequiredError,
@@ -60,6 +61,9 @@ def create_app(
 ) -> FastAPI:
     """Permite testar HTTP com uma função de consulta local, sem provedor real."""
     active_settings = settings or Settings()
+    limiter = RateLimiter(RateLimitSettings.from_env(
+        active_settings.index_dir.parent / "web" / "rate-limits.sqlite3"
+    ))
     app = FastAPI(title="Assistente de regulamentos acadêmicos", docs_url=None, redoc_url=None)
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
@@ -113,7 +117,21 @@ def create_app(
         }
 
     @app.post("/api/ask")
-    def ask(payload: QueryRequest):
+    def ask(payload: QueryRequest, request: Request):
+        try:
+            retry_after = limiter.consume(request.client.host if request.client else "unknown")
+        except RateLimitStorageError:
+            return error_response(
+                503, "rate_limit_unavailable",
+                "O controle de consultas está indisponível. Tente novamente mais tarde.",
+            )
+        if retry_after:
+            response = error_response(
+                429, "rate_limited",
+                f"Limite de consultas atingido. Aguarde {retry_after} segundos antes de tentar novamente.",
+            )
+            response.headers["Retry-After"] = str(retry_after)
+            return response
         context = RetrievalContext(**payload.context.model_dump())
         try:
             result = answerer(payload.question, context, active_settings)

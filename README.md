@@ -606,7 +606,7 @@ Em um checkout novo, prepare antes o ambiente com `uv` instalado:
 UV_PROJECT_ENVIRONMENT=.venv-web uv sync --locked --extra web
 ```
 
-O script usa `.venv-web` ou, na sua ausência, uma `.venv` com interpretador disponível. Ele entra automaticamente na raiz do projeto e carrega somente `NVIDIA_API_KEY` de `.env` quando ela não estiver definida no ambiente, sem executar `.env` como código nem imprimir a chave. Sem a chave, informa como configurá-la e não inicia. A aplicação e a CLI continuam sem carregar `.env` automaticamente quando executadas sem esse script.
+O script usa `.venv-web` ou, na sua ausência, uma `.venv` com interpretador disponível. Ele entra automaticamente na raiz do projeto e carrega `NVIDIA_API_KEY` e as cinco configurações `WEB_RATE_LIMIT_*` documentadas abaixo de `.env`, sem executar o arquivo como código nem imprimir a chave. Valores definidos no ambiente têm precedência; uma chave vazia permite a leitura do arquivo. Sem a chave, informa como configurá-la e não inicia. A aplicação e a CLI continuam sem carregar `.env` automaticamente quando executadas sem esse script.
 
 Abra [http://127.0.0.1:8000](http://127.0.0.1:8000) no navegador. Encerre com Ctrl+C. Se a porta estiver ocupada, encerre a instância anterior ou use `PORT=8001 ./scripts/run-web.sh` e acesse a porta 8001. O servidor escuta somente em `127.0.0.1` e usa `Settings()` com os mesmos caminhos, modelos e índice da CLI. Não realiza ingestão, indexação nem chamadas ao modelo ao abrir a página. O inventário e o índice precisam ter sido preparados conforme as instruções abaixo; o checkout novo não os contém.
 
@@ -626,8 +626,37 @@ A página e seus recursos são locais, sem CDN ou fontes externas. A chave perma
 | `POST /api/ask` | Recebe `question` e `context` (`institution: "IFMA"`, `course_level` obrigatório, `campus`/`modality` opcionais); chama `answer_question()` |
 | Resposta de consulta | `answer`, `status` e `sources`, preservando `source_id`, `document_id`, `document_name`, `page_number`, `chunk_id` e `excerpt` do núcleo |
 | Erros | `{ "error": { "code": "...", "message": "..." } }`; HTTP 422 para entrada/contexto inválido, 503 para configuração/índice indisponível, 502 para falha na busca/provedor ou geração inválida |
+| Limites de consultas | HTTP 429 com `error.code: "rate_limited"` e `Retry-After` em segundos; HTTP 503 com `rate_limit_unavailable` se não for possível contabilizar |
 
 Respostas da API usam `Cache-Control: no-store`. Perguntas e trechos são renderizados como texto, sem executar HTML/Markdown do modelo. O servidor não registra corpos de consulta por padrão. A UI não modifica os prompts, as políticas de aplicabilidade, a precedência documental ou os validadores existentes.
+
+### Proteção da quota NVIDIA
+
+`POST /api/ask` aplica, antes de chamar o núcleo, quatro limites simultâneos:
+
+| Variável | Padrão | Significado |
+| --- | --- | --- |
+| `WEB_RATE_LIMIT_IP_MINUTE` | 5 | Consultas por IP/minuto |
+| `WEB_RATE_LIMIT_IP_DAY` | 20 | Consultas por IP/dia |
+| `WEB_RATE_LIMIT_GLOBAL_MINUTE` | 10 | Consultas totais por minuto, no mesmo banco de contadores |
+| `WEB_RATE_LIMIT_GLOBAL_DAY` | 100 | Consultas totais por dia, no mesmo banco de contadores |
+| `WEB_RATE_LIMIT_DB` | `data/web/rate-limits.sqlite3` | Arquivo SQLite dos contadores |
+
+Os limites devem ser inteiros positivos; configuração inválida impede iniciar a aplicação. O caminho padrão acompanha a pasta pai de `Settings.index_dir`, de modo que configurações de teste não compartilham o banco real. Os exemplos estão em `.env.example`. Para aplicar alterações, reinicie o servidor:
+
+```bash
+WEB_RATE_LIMIT_IP_MINUTE=3 WEB_RATE_LIMIT_GLOBAL_DAY=50 ./scripts/run-web.sh
+```
+
+São janelas fixas: o minuto muda no início de cada minuto e o dia à meia-noite **UTC**. HTTP 429 não chama o RAG e informa o tempo restante até todas as janelas bloqueadas liberarem a consulta. A interface apresenta a mensagem de espera; clicar novamente não burla o controle. Consultas admitidas contam mesmo se a busca ou o provedor falharem; entradas rejeitadas pela validação HTTP não contam. Página, assets e opções de contexto não consomem essa franquia.
+
+Os incrementos são atômicos e persistidos antes da chamada ao núcleo. Reiniciar a aplicação não zera os limites quando o arquivo é preservado. Se o SQLite não estiver disponível, a API bloqueia com erro técnico 503 em vez de liberar acesso sem contagem. O banco armazena contadores e identificadores derivados por SHA-256 do IP, sem IP em texto puro, perguntas, respostas ou chaves. Esses identificadores são pseudônimos, não anonimização garantida; registros expirados são limpos em novas consultas.
+
+**Limites desta proteção:** não há login, portanto IP não identifica uma pessoa. Usuários atrás do mesmo NAT podem compartilhar a franquia; VPNs e múltiplos IPs não contornam o teto global do mesmo banco. Cada consulta pode gerar um embedding e até duas invocações do LLM, além de catálogo e eventuais requisições internas do SDK: os limites são de **consultas**, não de tokens, custo ou saldo exato da NVIDIA. Ajuste os tetos à quota disponível e aos demais consumidores da mesma chave. CLI, indexação e avaliação não passam por esse controle web.
+
+**Hospedagem e proxies:** o launcher usa `proxy_headers=False`; o aplicativo não lê `X-Forwarded-For` fornecido pelo visitante. Atrás de um proxy, todos podem compartilhar o IP do proxy até configurar o servidor ASGI para confiar **somente** nos proxies conhecidos e garantir que eles sobrescrevam cabeçalhos vindos da internet. Não use confiança irrestrita em cabeçalhos. Em disco efêmero, como nos planos gratuitos sem volume persistente, reinícios podem apagar os contadores. Use `WEB_RATE_LIMIT_DB` em armazenamento persistente para manter a franquia entre reinícios. Vários workers no mesmo disco compartilham o SQLite; réplicas com discos separados têm tetos separados e precisam de um contador central antes de escalar.
+
+Evidências de implementação e testes em [RATE-LIMIT.md](reports/RATE-LIMIT.md). Essa alteração não adiciona dependências, login ou garantia de quota financeira.
 
 **Identidade visual:** composição clara com verde nos controles, marca vetorial do IFMA preservada e fontes documentais junto das respostas. A origem e os créditos do SVG estão em [assets/README.md](src/academic_assistant/static/assets/README.md). A interface é identificada como projeto acadêmico; não certifica vínculo oficial nem conformidade integral com o manual institucional atual.
 
@@ -785,6 +814,7 @@ Após as correções da revisão da SPEC-013, em 14/10/2026: **148 testes aprova
 | `test_query.py` / `test_cli_ask.py` | Núcleo integrado, substitutos, apresentação e códigos |
 | `test_evaluation.py` / `test_evaluation_data.py` | Casos, métricas, orçamento, revisão e consolidação |
 | `test_web.py` | Contratos HTTP, fontes, erros técnicos e inventário inválido |
+| `test_rate_limit.py` / `test_web_launcher.py` | Limites atômicos/persistentes, relógio fictício, falha segura e inicialização web |
 | `test_documentation.py` | Destinos dos links Markdown locais no README e relatórios |
 
 Testes da lógica JavaScript e contraste declarado, sem dependências npm (Node.js 18 ou posterior):

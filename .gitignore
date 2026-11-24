@@ -19,6 +19,7 @@ data/documents/**
 !data/documents/.gitkeep
 data/index/**
 !data/index/.gitkeep
+data/web/
 
 # Avaliação local baseada em documentos não versionados
 evaluation/*.local.json
