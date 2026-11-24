@@ -28,7 +28,7 @@ class SettingsTests(unittest.TestCase):
                 self.assertEqual(settings.chunk_size, 1_000)
                 self.assertEqual(settings.chunk_overlap, 200)
                 self.assertEqual(settings.embedding_provider, "nvidia")
-                self.assertEqual(settings.embedding_model, "nvidia/nemotron-3-embed-1b")
+                self.assertEqual(settings.embedding_model, "nvidia/nemotron-3.5-embed-1b")
                 self.assertEqual(settings.embedding_dimensions, 2_048)
                 self.assertEqual(settings.retrieval_k, 4)
                 self.assertEqual(settings.retrieval_page_window, 1)

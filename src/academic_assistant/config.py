@@ -14,7 +14,7 @@ class Settings:
     chunk_size: int = 1_000
     chunk_overlap: int = 200
     embedding_provider: str = "nvidia"
-    embedding_model: str = "nvidia/nemotron-3-embed-1b"
+    embedding_model: str = "nvidia/nemotron-3.5-embed-1b"
     embedding_dimensions: int = 2_048
     collection_name: str = "academic-regulations"
     retrieval_k: int = 4
@@ -56,4 +56,3 @@ class Settings:
         ):
             if not getattr(self, field).strip():
                 raise ValueError(f"{field} deve ser uma string não vazia.")
-

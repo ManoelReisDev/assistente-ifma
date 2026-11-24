@@ -850,20 +850,20 @@ O progresso obtido estabelece um ponto de partida verificável para o restante d
 
 ## 15. Referências internas para conferência
 
-- [Requisitos e convenções — AGENTS.md](AGENTS.md)
-- [Instalação e uso — README.md](README.md)
-- [Dependências e configuração — pyproject.toml](pyproject.toml)
-- [Configuração do uv — uv.toml](uv.toml)
-- [SPEC-001 — Bootstrap](specs/001-bootstrap.md)
-- [SPEC-002 — Ambiente com uv](specs/002-ambiente-reproduzivel-com-uv.md)
-- [SPEC-003 — Dependências](specs/003-desbloqueio-dependencias.md)
-- [SPEC-004 — Ingestão](specs/004-ingestao-pdfs-por-pagina.md)
-- [SPEC-005 — Estrutura](specs/005-organizacao-da-estrutura-do-projeto.md)
-- [Interface de terminal — cli.py](src/academic_assistant/cli.py)
-- [Configuração — config.py](src/academic_assistant/config.py)
-- [Extração e relatórios — ingestion.py](src/academic_assistant/ingestion.py)
-- [Testes de bootstrap e CLI](tests/test_bootstrap.py)
-- [Testes de ingestão](tests/test_ingestion.py)
+- [Requisitos e convenções — AGENTS.md](../AGENTS.md)
+- [Instalação e uso — README.md](../README.md)
+- [Dependências e configuração — pyproject.toml](../pyproject.toml)
+- [Configuração do uv — uv.toml](../uv.toml)
+- [SPEC-001 — Bootstrap](../specs/001-bootstrap.md)
+- [SPEC-002 — Ambiente com uv](../specs/002-ambiente-reproduzivel-com-uv.md)
+- [SPEC-003 — Dependências](../specs/003-desbloqueio-dependencias.md)
+- [SPEC-004 — Ingestão](../specs/004-ingestao-pdfs-por-pagina.md)
+- [SPEC-005 — Estrutura](../specs/005-organizacao-da-estrutura-do-projeto.md)
+- [Interface de terminal — cli.py](../src/academic_assistant/cli.py)
+- [Configuração — config.py](../src/academic_assistant/config.py)
+- [Extração e relatórios — ingestion.py](../src/academic_assistant/ingestion.py)
+- [Testes de bootstrap e CLI](../tests/test_bootstrap.py)
+- [Testes de ingestão](../tests/test_ingestion.py)
 
 Este relatório foi elaborado a partir do código, das especificações, do README e das evidências registradas na implementação. Não reproduz o conteúdo dos PDFs locais nem certifica a validade acadêmica de seus textos.
 

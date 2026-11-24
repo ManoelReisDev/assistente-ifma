@@ -4,7 +4,7 @@ Data: 13 de outubro de 2026. Estado: execução encerrada; SPEC-006 a SPEC-012 c
 
 ## 1. Objetivo e referências
 
-Concluir o fluxo de consulta: PDF cadastrado → trechos → índice persistente → recuperação → resposta em português com documento, página física e excerto verificável. O plano segue o [AGENTS.md](AGENTS.md), o [relatório de progresso](RELATORIO-PROGRESSO.md), o [README](README.md) e as SPEC-001 a SPEC-005.
+Concluir o fluxo de consulta: PDF cadastrado → trechos → índice persistente → recuperação → resposta em português com documento, página física e excerto verificável. O plano segue o [AGENTS.md](../AGENTS.md), o [relatório de progresso](RELATORIO-PROGRESSO.md), o [README](../README.md) e as SPEC-001 a SPEC-005.
 
 Manter Python, LangChain, uv, pytest e a CLI existentes. Usar um fluxo de recuperação seguido de geração, adequado ao RAG simples descrito na [documentação oficial do LangChain](https://docs.langchain.com/oss/python/deepagents/retrieval#2-step-rag). O AGENTS.md continua sendo a referência para os requisitos específicos do produto.
 

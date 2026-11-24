@@ -74,7 +74,7 @@ function appendUser(text, context) {
   messages.append(article);
 }
 
-function appendAnswer(data, turnId) {
+function appendAnswer(data, turnId, errorCard = null) {
   const article = element("article", "message assistant");
   const label = element("div", "message-label", "Assistente");
   const statusLabels = { partial: "Resposta parcial", conflict: "Fontes em conflito", insufficient_evidence: "Evidência insuficiente" };
@@ -113,7 +113,8 @@ function appendAnswer(data, turnId) {
     });
     article.append(sources);
   }
-  messages.append(article);
+  if (errorCard) errorCard.replaceWith(article);
+  else messages.append(article);
   return article;
 }
 
@@ -121,9 +122,10 @@ async function submitQuestion(text, context, isRetry = false, errorCard = null) 
   if (busy) return;
   busy = true;
   welcome.hidden = true;
-  if (errorCard) errorCard.remove();
-  if (!isRetry) appendUser(text, context);
-  question.value = "";
+  if (!isRetry) {
+    appendUser(text, context);
+    question.value = "";
+  }
   const turnId = ++turn;
   activity.textContent = "Consultando documentos…";
   messages.setAttribute("aria-busy", "true");
@@ -138,7 +140,7 @@ async function submitQuestion(text, context, isRetry = false, errorCard = null) 
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error?.message || "Não foi possível concluir a consulta. Tente novamente.");
-    const article = appendAnswer(data, turnId);
+    const article = appendAnswer(data, turnId, errorCard);
     activity.textContent = "Consulta concluída. A resposta e as fontes estão disponíveis acima.";
     article.scrollIntoView({ block: "start" });
   } catch (error) {
@@ -150,7 +152,8 @@ async function submitQuestion(text, context, isRetry = false, errorCard = null) 
     retry.type = "button";
     retry.addEventListener("click", () => submitQuestion(text, context, true, card));
     card.append(retry);
-    messages.append(card);
+    if (errorCard) errorCard.replaceWith(card);
+    else messages.append(card);
     activity.textContent = "A consulta não foi concluída.";
     card.scrollIntoView({ block: "nearest" });
   } finally {

@@ -193,6 +193,37 @@ def test_retrieval_without_neighbors_respects_top_k(tmp_path: Path) -> None:
     assert all(item.is_primary for item in result.evidences)
 
 
+@pytest.mark.parametrize("maximum", [1, 2])
+def test_neighbor_expansion_respects_maximum_when_primary_slots_are_full(tmp_path, maximum):
+    settings, loaded, _ = prepare_index(tmp_path)
+    settings = make_settings(tmp_path, retrieval_k=maximum, retrieval_max_chunks=maximum)
+
+    result = retrieve_evidence(
+        "Regra geral fictícia.", loaded, settings, RetrievalContext(course_level="graduação")
+    )
+
+    assert len(result.evidences) == maximum
+    assert all(item.is_primary for item in result.evidences)
+
+
+def test_invalid_inventory_scope_stops_before_vector_search(tmp_path):
+    from academic_assistant.indexing import IndexingError
+
+    settings, loaded, embeddings = prepare_index(tmp_path)
+    corpus = json.loads(settings.corpus_file.read_text())
+    corpus["documents"][0]["campus"] = ["Campus Norte"]
+    settings.corpus_file.write_text(json.dumps(corpus))
+    calls_before = embeddings.query_calls
+
+    with pytest.raises(IndexingError, match="campus"):
+        retrieve_evidence(
+            "Pergunta fictícia", loaded, settings,
+            RetrievalContext(course_level="graduação", campus="Campus Sul"),
+        )
+
+    assert embeddings.query_calls == calls_before
+
+
 @pytest.mark.parametrize("institution", [None, "", "IFMA"])
 def test_retrieval_assumes_ifma_and_preserves_other_scope_filters(tmp_path, institution):
     settings, loaded, _ = prepare_index(tmp_path)

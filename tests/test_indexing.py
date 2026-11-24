@@ -20,6 +20,7 @@ from academic_assistant.indexing import (
     IndexingError,
     StaleIndexError,
     load_active_index,
+    load_corpus_selection,
     prepare_index_documents,
     rebuild_index,
 )
@@ -107,6 +108,33 @@ def make_chunks(document_id: str, document_hash: str, texts: list[str]) -> list[
     ]
 
 
+@pytest.mark.parametrize("field", ["campus", "modality"])
+@pytest.mark.parametrize("value", [["Campus Norte"], {"name": "Norte"}, 42, True])
+def test_inventory_rejects_invalid_optional_scope(tmp_path, field, value):
+    settings = make_settings(tmp_path)
+    write_sources(settings, {"regra.pdf": b"documento ficticio"})
+    corpus = json.loads(settings.corpus_file.read_text())
+    corpus["documents"][0][field] = value
+    settings.corpus_file.write_text(json.dumps(corpus))
+
+    with pytest.raises(IndexingError, match=field):
+        load_corpus_selection(settings)
+
+
+@pytest.mark.parametrize("value", [None, "", "Campus Norte"])
+def test_inventory_preserves_valid_optional_scope(tmp_path, value):
+    settings = make_settings(tmp_path)
+    write_sources(settings, {"regra.pdf": b"documento ficticio"})
+    corpus = json.loads(settings.corpus_file.read_text())
+    corpus["documents"][0].update(campus=value, modality=value)
+    settings.corpus_file.write_text(json.dumps(corpus))
+
+    selected = load_corpus_selection(settings)
+
+    assert selected["regra.pdf"]["campus"] == value
+    assert selected["regra.pdf"]["modality"] == value
+
+
 def test_persistent_index_reloads_without_embedding_documents(tmp_path: Path) -> None:
     settings = make_settings(tmp_path)
     hashes = write_sources(settings, {"regra.pdf": b"pdf ficticio versao 1"})
@@ -189,6 +217,33 @@ def test_load_rejects_changed_sources_and_incompatible_configuration(tmp_path: P
         load_active_index(settings, DeterministicEmbeddings())
 
 
+def test_embedding_model_migration_requires_rebuild_even_with_same_dimension(tmp_path):
+    old = make_settings(tmp_path, embedding_model="nvidia/nemotron-3-embed-1b")
+    hashes = write_sources(old, {"regra.pdf": b"documento inteiramente ficticio"})
+    chunks = make_chunks("regra.pdf", hashes["regra.pdf"], ["Regra fictícia."])
+    first = rebuild_index(chunks, DeterministicEmbeddings(), old)
+    first_manifest_path = old.index_dir / "versions" / first.index_id / "manifest.json"
+    first_manifest = first_manifest_path.read_bytes()
+    active_before = (old.index_dir / "active.json").read_bytes()
+    new = replace(old, embedding_model="nvidia/nemotron-3.5-embed-1b")
+
+    with pytest.raises(IncompatibleIndexError, match="embedding"):
+        load_active_index(new, DeterministicEmbeddings())
+    assert (old.index_dir / "active.json").read_bytes() == active_before
+
+    with pytest.raises(IndexingError, match="Falha ao gerar embeddings"):
+        rebuild_index(chunks, DeterministicEmbeddings(fail=True), new)
+    assert (old.index_dir / "active.json").read_bytes() == active_before
+
+    second = rebuild_index(chunks, DeterministicEmbeddings(), new)
+    loaded = load_active_index(new, DeterministicEmbeddings())
+    assert loaded.manifest["embedding"]["model"] == new.embedding_model
+    assert loaded.manifest["embedding"]["dimensions"] == old.embedding_dimensions
+    assert second.index_id != first.index_id
+    assert first_manifest_path.read_bytes() == first_manifest
+    assert loaded.store.get(include=[])["ids"] == [chunks[0].metadata["chunk_id"]]
+
+
 def test_selected_partial_document_blocks_preparation(tmp_path: Path, monkeypatch) -> None:
     settings = make_settings(tmp_path)
     hashes = write_sources(settings, {"regra.pdf": b"pdf parcial"})
@@ -241,7 +296,7 @@ def test_create_embeddings_uses_configured_nvidia_model(monkeypatch) -> None:
     result = indexing.create_embeddings(Settings())
 
     assert isinstance(result, FakeNVIDIAEmbeddings)
-    assert captured == {"model": "nvidia/nemotron-3-embed-1b"}
+    assert captured == {"model": "nvidia/nemotron-3.5-embed-1b"}
 
 
 def test_create_embeddings_suppresses_only_known_catalog_warning(monkeypatch) -> None:

@@ -59,7 +59,7 @@ Listar resultados verificáveis como `CA-01`, `CA-02` e assim por diante.
 - [ ] Requisitos funcionais atendidos
 - [ ] Requisitos técnicos atendidos
 - [ ] Testes relevantes implementados e aprovados
-- [ ] Build aprovado com `./mvnw clean package`
+- [ ] Pacote Python construído com `uv build` e artefatos conferidos
 - [ ] Nenhum item fora do escopo implementado
 - [ ] Documentação afetada atualizada
 

@@ -1,5 +1,7 @@
 # Relatório geral — Assistente de Regulamentos Acadêmicos
 
+> Relatório histórico do MVP de terminal e de sua avaliação. A interface web local foi acrescentada em 20/10/2026; consulte o [README atual](../README.md) para instalação, comportamento e limitações do modelo atual. As seções abaixo preservam o recorte das entregas originais.
+
 ## 1. Resumo executivo
 
 O projeto implementa um assistente capaz de responder perguntas sobre regulamentos acadêmicos a partir de documentos institucionais em PDF. A proposta não é apenas conversar com um modelo de inteligência artificial, mas construir respostas verificáveis: cada afirmação deve estar associada ao documento, à página e ao trecho que serviram de base.
@@ -215,9 +217,9 @@ Páginas digitalizadas ou PDFs protegidos podem não fornecer texto extraível. 
 
 O MVP utiliza NVIDIA para embeddings e geração. É necessária uma chave `NVIDIA_API_KEY` para indexação e consulta reais. O código prevê um único provedor, conforme o escopo inicial.
 
-### Interface ainda é de terminal
+### Interface de terminal no recorte original
 
-A CLI é adequada para demonstrar e validar o núcleo, mas ainda não oferece uma interface web ou integração direta com portal acadêmico, WhatsApp ou aplicativo institucional.
+A CLI era a interface disponível nesse recorte. Posteriormente foi acrescentada uma interface web local com FastAPI; não há integração direta com portal acadêmico, WhatsApp ou aplicativo institucional.
 
 ### Avaliação sem modelo real ainda é limitada
 
@@ -290,8 +292,8 @@ Como MVP, o sistema já demonstra uma arquitetura coerente para um assistente ac
 
 Arquivos centrais para consulta:
 
-- [README.md](README.md) — instalação, uso e decisões do MVP;
-- [AGENTS.md](AGENTS.md) — requisitos de comportamento e confiabilidade;
-- [src/academic_assistant/](src/academic_assistant/) — implementação;
-- [tests/](tests/) — testes automatizados;
-- [evaluation/README.md](evaluation/README.md) — casos e critérios de avaliação.
+- [README.md](../README.md) — instalação, uso e decisões do MVP;
+- [AGENTS.md](../AGENTS.md) — requisitos de comportamento e confiabilidade;
+- [src/academic_assistant/](../src/academic_assistant/) — implementação;
+- [tests/](../tests/) — testes automatizados;
+- [Avaliação, testes e confiabilidade](../README.md#13-avaliação-testes-e-confiabilidade) — casos e critérios de avaliação.

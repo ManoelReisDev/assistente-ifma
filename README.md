@@ -6,8 +6,13 @@ Regulamentos extensos, linguagem formal, informações distribuídas entre artig
 
 O assistente apoia a consulta; não certifica a vigência das normas nem substitui os documentos ou os setores responsáveis. Para desenvolvedores, este README descreve o fluxo implementado, suas decisões, como reproduzi-lo e como avaliar a fidelidade das respostas.
 
+Para uma revisão coordenada de estrutura, frontend e material não utilizado, consulte o [playbook de revisão com três agentes](specs/playbooks/revisao-projeto.md). Ele prepara uma revisão somente leitura; não executa agentes nem autoriza exclusões automaticamente.
+
 > [!IMPORTANT]
-> O fluxo completo está implementado pela CLI e tem uma interface web local de consulta. A avaliação com o modelo real encontrou falhas semânticas. Citações estruturalmente válidas e recuperação correta não garantem uma conclusão correta. As limitações e os resultados estão documentados abaixo.
+> O fluxo completo está implementado pela CLI e tem uma interface web local de consulta. Avaliações históricas encontraram falhas semânticas; a regressão corrigida da SPEC-013 foi aprovada no conjunto avaliado, conforme seu encerramento. O modelo atual passou por nova avaliação técnica de 21 casos, ainda sem revisão humana das respostas. Citações estruturalmente válidas e recuperação correta não garantem uma conclusão correta.
+
+> [!WARNING]
+> **Migração em 24/11/2026:** após HTTP 410 do antigo `nvidia/nemotron-3-embed-1b`, o padrão passou a `nvidia/nemotron-3.5-embed-1b`. O índice local foi reconstruído com 169 trechos, mantendo PDFs e versão anterior. Checkouts com índices antigos precisam reconstruí-los mesmo com a mesma dimensão. A nova avaliação RAG concluiu 21/21 casos após uma repetição técnica, com 38 invocações no total e revisão humana pendente. Veja a [migração e avaliação](reports/MIGRACAO-EMBEDDINGS35.md) e o [diagnóstico anterior](reports/AVALIACAO-NVIDIA-20261124.md).
 
 ## 1. Escopo e estado atual
 
@@ -28,7 +33,7 @@ Documentação do núcleo conferida contra código, lockfile, testes e artefatos
 | Interface web e API locais | Chat em FastAPI + HTML/CSS/JavaScript, com contexto acadêmico e fontes por resposta; veja seção 12 |
 | Autenticação e memória conversacional | Não implementadas; histórico visual temporário, perguntas independentes |
 
-As SPEC-001 a SPEC-012 estão registradas como concluídas, com as limitações semânticas da avaliação. A [SPEC-013 — Proveniência da avaliação e regressões semânticas](specs/013-proveniencia-e-regressoes-semanticas.md) está em validação: a regressão anterior foi revisada por Manoel, as duas mudanças de produto foram implementadas e uma nova regressão integral concluiu 21 casos, com repetição de duas falhas do provedor. A revisão humana dessa nova regressão ainda está pendente. As demais evoluções da seção 14 continuam propostas.
+As SPEC-001 a SPEC-013 estão registradas como concluídas. O [encerramento da SPEC-013](specs/013-proveniencia-e-regressoes-semanticas.md#20-encerramento) registra a revisão humana dos 21 casos da regressão corrigida, com aprovação integral nesse conjunto. Esse resultado pertence ao experimento com o modelo anterior, `nvidia/nemotron-3-super-120b-a12b`. A nova avaliação com Super VL 3.5 e Embed 3.5 concluiu tecnicamente os 21 casos; sua revisão humana está pendente, especialmente quanto às fontes adicionais. O encerramento histórico foi reconciliado com os registros versionados, sem reauditar avaliações privadas antigas. As demais evoluções da seção 14 continuam propostas.
 
 ### Corpus disponível no ambiente de desenvolvimento
 
@@ -67,7 +72,7 @@ RAG é adequado porque a resposta deve depender de um corpus institucional delim
 
 Embeddings representam textos por vetores numéricos. O modelo é treinado para organizar essas representações de modo que relações textuais úteis à recuperação apareçam na proximidade vetorial. Documentos e consulta precisam de representações compatíveis; `load_active_index()` exige o mesmo provedor, modelo e dimensão registrados na indexação.
 
-`NVIDIAEmbeddings`, criado em `indexing.py`, gera vetores dos trechos e da pergunta. O padrão é `nvidia/nemotron-3-embed-1b`, com dimensão esperada de 2.048. A fábrica passa o nome do modelo; a dimensão é conferida no banco, não enviada como parâmetro para redimensionar vetores. A integração está descrita na [documentação oficial do LangChain](https://docs.langchain.com/oss/python/integrations/embeddings/nvidia_ai_endpoints).
+`NVIDIAEmbeddings`, criado em `indexing.py`, gera vetores dos trechos e da pergunta. Desde 24/11/2026, o padrão é `nvidia/nemotron-3.5-embed-1b`, com dimensão esperada de 2.048, após a descontinuação do modelo anterior. A fábrica passa o nome do modelo; a dimensão é conferida no banco, não enviada como parâmetro para redimensionar vetores. A integração usa `passage` para documentos e `query` para perguntas, conforme a [API oficial do modelo](https://build.nvidia.com/nvidia/nemotron-3_5-embed-1b/apireference) e a [documentação do LangChain](https://docs.langchain.com/oss/python/integrations/embeddings/nvidia_ai_endpoints). Mesmo com a mesma dimensão, índices do modelo anterior exigem reconstrução.
 
 A busca por palavras-chave procura ocorrências ou combinações lexicais; a busca vetorial pode aproximar formulações diferentes sobre o mesmo assunto. Isso ajuda com perguntas informais, mas pode confundir dispositivos próximos: frequência e avaliação, revisão e reposição de prova, dias úteis e corridos. Números, negações, condições cumulativas e termos normativos não devem ser interpretados pela proximidade dos vetores. Similaridade seleciona candidatos; a evidência textual sustenta a conclusão.
 
@@ -383,7 +388,7 @@ Faixas diretas estão em [pyproject.toml](pyproject.toml); resolução exata em 
 | onnxruntime | 1.23.2 | Dependência do ecossistema Chroma; não é o embedder escolhido |
 | pytest | 8.4.2 | Extra `dev`; dados/modelos fictícios offline |
 
-LangChain/integrações são limitados à série 1.x, `pypdf` à 6.x e `pytest` à 8.x. `onnxruntime>=1.14.1,<1.24` foi registrado por incompatibilidade de wheel da versão inicialmente selecionada com Python 3.10. Os modelos são serviços NVIDIA em `Settings`, não executados localmente. Não há FAISS, OpenAI, FastAPI ou framework web no fluxo.
+LangChain/integrações são limitados à série 1.x, `pypdf` à 6.x e `pytest` à 8.x. `onnxruntime>=1.14.1,<1.24` foi registrado por incompatibilidade de wheel da versão inicialmente selecionada com Python 3.10. Os modelos são serviços NVIDIA em `Settings`, não executados localmente. Não há FAISS nem integração OpenAI no fluxo. A interface web local utiliza FastAPI e Uvicorn pelo extra `web`, sobre o mesmo núcleo da CLI.
 
 ## 8. Estratégias de Engenharia de Software
 
@@ -482,12 +487,13 @@ assistente-ifma/
 │   ├── generation.py         # modelo, chamada e revisão limitada
 │   ├── validation.py         # decisão, resultado e fontes
 │   ├── query.py              # answer_question
-│   └── evaluation.py         # métricas, revisão e consolidação
-├── tests/                    # 10 arquivos offline
+│   ├── evaluation.py         # métricas, revisão e consolidação
+│   ├── web.py                # API e interface web locais
+│   └── static/               # index.html, app.js, styles.css e assets/ com SVG/créditos
+├── tests/                    # pytest offline e frontend.test.cjs (Node.js)
 ├── evaluation/
-│   ├── README.md             # contrato dos casos/dados locais
 │   └── synthetic-cases.json  # cinco cenários fictícios
-├── specs/                    # SPEC-001 a SPEC-013 e template
+├── specs/                    # SPEC-001 a SPEC-013, template e playbooks/
 ├── reports/
 │   ├── RELATORIO-GERAL.md
 │   ├── RELATORIO-PROGRESSO.md
@@ -578,7 +584,7 @@ Repita carregamento em cada terminal. Não imprima/versione a chave; alternativa
 | `documents_dir` / `index_dir` | `data/documents` / `data/index` |
 | `corpus_file` | `evaluation/corpus.local.json` |
 | `chunk_size` / `chunk_overlap` | 1.000 / 200 caracteres |
-| `embedding_provider` / `embedding_model` | `nvidia` / `nvidia/nemotron-3-embed-1b` |
+| `embedding_provider` / `embedding_model` | `nvidia` / `nvidia/nemotron-3.5-embed-1b` |
 | `embedding_dimensions` / `collection_name` | 2.048 / `academic-regulations` |
 | `retrieval_k` / `retrieval_page_window` / `retrieval_max_chunks` | 4 / 1 / 12 |
 | `llm_provider` / `llm_model` | `nvidia` / `nvidia/nemotron-3.5-super-vl-120b-a12b` |
@@ -588,21 +594,25 @@ Não há variáveis `CHUNK_SIZE`, `MODEL` ou equivalentes. Caminhos são flags; 
 
 ### Interface web local
 
-Instale também o extra `web` e inicie o servidor **a partir da raiz do projeto**:
+Neste ambiente, já foi preparado `.venv-web`. Para iniciar com um comando:
 
 ```bash
-uv sync --locked --extra dev --extra web
-set -a
-source .env
-set +a
-uv run --locked --extra web uvicorn academic_assistant.web:app --host 127.0.0.1 --port 8000
+./scripts/run-web.sh
 ```
 
-Abra [http://127.0.0.1:8000](http://127.0.0.1:8000) no navegador. Encerre com Ctrl+C. O servidor usa `Settings()` com os mesmos caminhos, modelos e índice da CLI. Não realiza ingestão, indexação nem chamadas ao modelo ao abrir a página. O inventário e o índice precisam ter sido preparados conforme as instruções abaixo; o checkout novo não os contém. A interface pode abrir sem credencial, mas consultar o provedor requer `NVIDIA_API_KEY` no ambiente do servidor. `.env` continua sem carregamento automático.
+Em um checkout novo, prepare antes o ambiente com `uv` instalado:
+
+```bash
+UV_PROJECT_ENVIRONMENT=.venv-web uv sync --locked --extra web
+```
+
+O script usa `.venv-web` ou, na sua ausência, uma `.venv` com interpretador disponível. Ele entra automaticamente na raiz do projeto e carrega somente `NVIDIA_API_KEY` de `.env` quando ela não estiver definida no ambiente, sem executar `.env` como código nem imprimir a chave. Sem a chave, informa como configurá-la e não inicia. A aplicação e a CLI continuam sem carregar `.env` automaticamente quando executadas sem esse script.
+
+Abra [http://127.0.0.1:8000](http://127.0.0.1:8000) no navegador. Encerre com Ctrl+C. Se a porta estiver ocupada, encerre a instância anterior ou use `PORT=8001 ./scripts/run-web.sh` e acesse a porta 8001. O servidor escuta somente em `127.0.0.1` e usa `Settings()` com os mesmos caminhos, modelos e índice da CLI. Não realiza ingestão, indexação nem chamadas ao modelo ao abrir a página. O inventário e o índice precisam ter sido preparados conforme as instruções abaixo; o checkout novo não os contém.
 
 Selecione explicitamente o nível do curso; campus e modalidade são opcionais. As opções são lidas dos metadados dos documentos selecionados no inventário. Campos sem opções cadastradas ficam desabilitados. A ausência de metadados não comprova cobertura de todos os contextos: os filtros e as limitações do núcleo continuam aplicáveis. Envie uma pergunta completa usando o botão “Perguntar” ou Enter; Shift+Enter insere uma quebra de linha. As sugestões iniciais apenas preenchem o campo.
 
-O chat apresenta a resposta validada e, abaixo, cada fonte com nome do documento, página física do PDF e excerto literal. As referências levam ao respectivo trecho na mesma resposta. Respostas parciais, conflitos e falta de evidência recebem rótulos próprios. Falhas técnicas aparecem como erros com opção de repetir a consulta, sem serem convertidas em falta de evidência. A interface aceita perguntas de até 4.000 caracteres.
+O chat apresenta a resposta validada e, abaixo, cada fonte com nome do documento, página física do PDF e excerto literal. As referências levam ao respectivo trecho na mesma resposta. Respostas parciais, conflitos e falta de evidência recebem rótulos próprios. Falhas técnicas aparecem como erros com opção de repetir a consulta, sem serem convertidas em falta de evidência. A repetição mantém pergunta e contexto originais, substitui o erro no mesmo turno (inclusive se falhar novamente) e preserva o rascunho atual. A interface aceita perguntas de até 4.000 caracteres.
 
 Cada pergunta é independente: mensagens anteriores **não são enviadas ao modelo**. O histórico visual fica somente na memória da página, sem cookies, armazenamento local ou banco de conversas. Recarregar ou clicar em “Limpar conversa” descarta as mensagens exibidas. Cada pergunta registra visualmente o contexto utilizado, mesmo que os seletores sejam alterados depois.
 
@@ -670,7 +680,7 @@ uv run --locked python -m academic_assistant ingest --documents-dir /caminho/par
 }
 ```
 
-Nome/ID devem corresponder ao arquivo; instituição/nível, ao escopo real. Use campus/modalidade específicos quando confirmados e registre incertezas em `applicability_limits`. `null` não comprova aplicação universal. Campos adicionais de curadoria são aceitos, mas não verificados automaticamente.
+Nome/ID devem corresponder ao arquivo; instituição/nível, ao escopo real. Use campus/modalidade específicos quando confirmados e registre incertezas em `applicability_limits`. Esses campos opcionais aceitam texto ou `null`; listas, objetos, números e booleanos são rejeitados na leitura do inventário, antes da busca ou indexação. Campos ausentes, `null` ou texto vazio não restringem a seleção, mas não comprovam aplicação universal. Campos adicionais de curadoria são aceitos, mas não verificados automaticamente.
 
 Obtenha hashes/metadados pela ingestão, sem imprimir texto:
 
@@ -774,6 +784,18 @@ Após as correções da revisão da SPEC-013, em 14/10/2026: **148 testes aprova
 | `test_generation.py` | Esquema, fontes inválidas, metadados proibidos, estados, prompt e falha de API |
 | `test_query.py` / `test_cli_ask.py` | Núcleo integrado, substitutos, apresentação e códigos |
 | `test_evaluation.py` / `test_evaluation_data.py` | Casos, métricas, orçamento, revisão e consolidação |
+| `test_web.py` | Contratos HTTP, fontes, erros técnicos e inventário inválido |
+| `test_documentation.py` | Destinos dos links Markdown locais no README e relatórios |
+
+Testes da lógica JavaScript e contraste declarado, sem dependências npm (Node.js 18 ou posterior):
+
+```bash
+node --test tests/frontend.test.cjs
+```
+
+Eles executam o script real com DOM mínimo e API fictícia: repetição de consultas antigas, nova falha durante repetição, preservação de rascunho/contexto/fontes e contraste do placeholder. Não substituem testes em navegador, layout, teclado ou leitor de tela.
+
+**Correções verificadas em 24/11/2026:** 190 testes Python e três testes Node passaram; cobertura Python com branches de 85%. Build e lockfile foram conferidos. No Chromium, respostas fictícias confirmaram o fluxo de repetição com turnos/contextos distintos e preservação do rascunho, em viewport 800×618. O ambiente Python 3.10.22 foi preparado separadamente porque o interpretador da `.venv` original está ausente nesta máquina. Evidências RED/GREEN e limites no [relatório de correções](reports/CORRECOES-REVISAO.md).
 
 Modelos simulados demonstram comportamento do código. O teste de prompt inspeciona mensagens maliciosas, sem provar resistência de LLM real. Embeddings por hash também não demonstram qualidade semântica.
 
@@ -875,13 +897,13 @@ Foram 52 invocações contadas entre as etapas, de um planejamento máximo de 84
 
 Candidato e regressão têm o mesmo fingerprint `2d092cd57900b3797b7ac7023a0e054d435f38df1270be9457bf064b4d2f27f9`. São experimentos separados do diagnóstico, sem consolidação com os históricos. Na regressão, precisão automática por rótulos é 21/22 (95,45%); uma fonte complementar de IFMA-006 sustenta também afirmação sobre trancamento parcial/total e requer avaliação humana. Abstenção nos dois casos esperados e contexto ausente no caso correspondente tiveram estado correto. Conflito e instrução maliciosa preservaram os estados esperados nos sintéticos.
 
-Os relatórios locais originais são `evaluation/spec013-diagnostic.local.json`, `evaluation/spec013-candidate-v1.local.json` e `evaluation/spec013-regression-v1.local.json`. Posteriormente, Manoel revisou os 21 casos da regressão na conversa: 19 aprovados e duas solicitações de mudança de produto (IFMA-016 e SYN-004). As decisões estão em `spec013-regression-reviews.local.json`, aplicadas em `spec013-regression-reviewed.local.json`, sem sobrescrever o relatório original. IFMA-003 foi aprovado após a apresentação da possível ambiguidade. Diagnóstico/candidato continuam sem revisão humana aplicada.
+Os relatórios locais originais são `evaluation/spec013-diagnostic.local.json`, `evaluation/spec013-candidate-v1.local.json` e `evaluation/spec013-regression-v1.local.json`. Posteriormente, Manoel revisou os 21 casos da regressão na conversa: 19 aprovados e duas solicitações de mudança de produto (IFMA-016 e SYN-004). As decisões estão em `spec013-regression-reviews.local.json`, aplicadas em `spec013-regression-reviewed.local.json`, sem sobrescrever o relatório original. IFMA-003 foi aprovado após a apresentação da possível ambiguidade. Naquele momento, diagnóstico/candidato ainda não tinham revisão humana aplicada; seu encerramento posterior está registrado abaixo.
 
 A revisão anterior registrou suporte/requisitos em 19/21 (90,48%) e fontes sustentadas em 21/22 (95,45%). Essas classificações incluem as duas novas decisões de produto, diferentes das expectativas originais. Não são métricas da implementação corrigida.
 
 As correções implementam IFMA implícito e prioridade por data/grupo revisados. A expectativa local de IFMA-016 foi ajustada por essa decisão humana; SYN-004 recebeu datas/grupo fictícios e passou a esperar a versão recente. Os relatórios e suas expectativas antigas permanecem intactos. O novo `evaluation/spec013-corrections-focal.local.json` executou IFMA-016 e os cinco sintéticos: seis casos concluídos, zero erros, 4/12 invocações de geração, estados 6/6 e evidências esperadas/citadas 4/4. A recuperação do caso IFMA-016 é dispensada por falta de nível, e os cinco sintéticos recebem evidências diretamente; essa etapa não comprova busca semântica real.
 
-Total contado da SPEC até aqui: 56/84. Manoel aprovou expressamente as novas saídas de IFMA-016 e SYN-004 na conversa. As duas revisões foram vinculadas aos hashes/execução novos em `spec013-corrections-reviews.local.json` e aplicadas em `spec013-corrections-reviewed.local.json`, com o original preservado. São 2/6 casos revisados nesse experimento; os outros quatro não receberam aprovação transferida. A avaliação focal da correção não substitui uma nova regressão integral de 21 casos com revisão humana. A SPEC permanece em validação. Não houve novas chamadas de indexação nem alteração dos PDFs/índice.
+Total contado da SPEC nessa etapa: 56/84. Manoel aprovou expressamente as novas saídas de IFMA-016 e SYN-004 na conversa. As duas revisões foram vinculadas aos hashes/execução novos em `spec013-corrections-reviews.local.json` e aplicadas em `spec013-corrections-reviewed.local.json`, com o original preservado. Foram 2/6 casos revisados nesse experimento; os outros quatro não receberam aprovação transferida. A avaliação focal da correção não substituía uma nova regressão integral de 21 casos com revisão humana. A SPEC ainda estava em validação nessa etapa. Não houve novas chamadas de indexação nem alteração dos PDFs/índice.
 
 ### Regressão integral após as correções
 
@@ -895,11 +917,13 @@ A pedido de Manoel, foi iniciada outra etapa de regressão, com limite de 60 inv
 | Estado esperado | 21/21 |
 | Evidências esperadas recuperadas/citadas | 19/19 em ambas |
 | Precisão automática por rótulos | 20/21 — 95,24% |
-| Revisões humanas aplicadas nesta regressão | 0/21 |
+| Revisões humanas ao encerrar a etapa técnica (antes da revisão final) | 0/21 |
 
 Arquivos novos: `evaluation/spec013-corrections-regression.local.json`, `spec013-corrections-regression-retry.local.json` e `spec013-corrections-regression-final.local.json`. O cadastro de execuções preserva os tetos individuais de 60 e cinco; a soma operacional de `max_calls` no consolidado é 65, mas o uso real foi conferido contra o orçamento de etapa de 60. Foram 35 chamadas na primeira execução e três na repetição. O histórico acumulado passa a 94 chamadas: 56 das etapas anteriores e 38 desta nova etapa autorizada, que não foi apresentada como saldo do planejamento original de 84.
 
-A comparação exata em `spec013-corrections-regression-final-comparison.local.json` encontrou 14 casos com o mesmo texto exibido, fontes e expectativas já revisados, e sete diferentes: IFMA-001, IFMA-002, IFMA-003, IFMA-006, IFMA-008, IFMA-011 e IFMA-013. Essa comparação facilita uma nova confirmação humana, sem transferir aprovações automaticamente. Em especial, a redação de IFMA-001 e IFMA-003 deve ser conferida; pequenas mudanças de palavras podem afetar o sentido. A SPEC permanece em validação até revisar os novos resultados.
+A comparação exata em `spec013-corrections-regression-final-comparison.local.json` encontrou 14 casos com o mesmo texto exibido, fontes e expectativas já revisados, e sete diferentes: IFMA-001, IFMA-002, IFMA-003, IFMA-006, IFMA-008, IFMA-011 e IFMA-013. Essa comparação facilitou uma nova confirmação humana, sem transferir aprovações automaticamente. Naquele ponto, a SPEC continuava em validação até revisar os novos resultados.
+
+**Encerramento histórico:** a [SPEC-013](specs/013-proveniencia-e-regressoes-semanticas.md#20-encerramento) e o [progresso](reports/RELATORIO-PROGRESSO.md#20-encerramento-da-spec-013) registram a revisão posterior de Manoel: quatro casos do diagnóstico, quatro do candidato focal e 21/21 da nova regressão corrigida. O diagnóstico manteve duas reprovações; o candidato e a regressão corrigida foram aprovados. Nesta última, suporte semântico, requisitos preservados e citações sustentadas foram registrados em 100%, com zero erros técnicos restantes. A SPEC foi finalizada para esse experimento. Esses dados são transcritos dos registros versionados, não de nova auditoria dos artefatos privados. Não se transferem ao Super VL 3.5 adotado depois nem constituem garantia geral.
 
 ### Verificação desta revisão documental
 

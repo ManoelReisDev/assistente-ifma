@@ -132,9 +132,11 @@ def test_query_reloads_index_and_returns_validated_answer(tmp_path: Path) -> Non
     assert model.calls == 1
 
 
-def test_query_does_not_create_chat_model_without_evidence(monkeypatch) -> None:
+def test_query_does_not_create_chat_model_without_evidence(monkeypatch, tmp_path) -> None:
     from academic_assistant import query
 
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(query, "applicable_document_ids", lambda *args: ("regra-ficticia",))
     retrieval = RetrievalResult(
         question="Pergunta fictícia sem evidência",
         context=RetrievalContext(institution="IFMA", course_level="graduação"),

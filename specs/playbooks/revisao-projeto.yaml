@@ -1,0 +1,55 @@
+# Fragmento para mesclar em "playbooks" na configuração existente do Alethe.
+# Não substitui o arquivo completo e não altera providers, tiers ou preferências.
+# Briefs e regras operacionais: specs/playbooks/revisao-projeto.md
+playbooks:
+  revisao-projeto:
+    name: Revisão do Assistente de Regulamentos Acadêmicos
+    goal: Revisar estrutura, frontend e material não utilizado sem modificar o projeto.
+    pickWhen: Revisão geral deste projeto com três agentes especializados.
+    saves: Uma única onda de leitura com escopos separados e síntese pelo lead.
+    avoidWhen: A tarefa já autoriza implementação ou exige apenas uma correção pontual.
+    phases:
+      - id: preparar
+        role: coordenador
+        who: lead
+        readOnly: true
+        does: Seguir a preparação e as restrições em specs/playbooks/revisao-projeto.md; gerar três briefs e um plano externo ao repositório.
+        gate: Escopos definidos, estado Git registrado e modelos, quota e orçamento conferidos antes da execução.
+      - id: estrutura
+        role: revisor de estrutura
+        tier: standard
+        provider: auto
+        readOnly: true
+        workers: 1
+        runner: research
+        does: Executar exclusivamente o brief Estrutura em specs/playbooks/revisao-projeto.md.
+        returns: Achados com arquivo e linha, impacto, evidência, recomendação mínima, verificações e limitações.
+        gate: Relatório verificável recebido e nenhuma alteração no checkout.
+      - id: frontend
+        role: revisor de frontend
+        with: estrutura
+        tier: standard
+        provider: auto
+        readOnly: true
+        workers: 1
+        runner: research
+        does: Executar exclusivamente o brief Frontend em specs/playbooks/revisao-projeto.md.
+        returns: Achados de comportamento, acessibilidade e apresentação das fontes; separar inspeção estática de execução visual.
+        gate: Relatório verificável recebido e nenhuma alteração no checkout.
+      - id: limpeza
+        role: revisor de conteúdo não utilizado
+        with: estrutura
+        tier: standard
+        provider: auto
+        readOnly: true
+        workers: 1
+        runner: research
+        does: Executar exclusivamente o brief Limpeza em specs/playbooks/revisao-projeto.md; propor, nunca excluir.
+        returns: Inventário de candidatos com referências verificadas, classificação, risco e decisão proposta.
+        gate: Nenhuma remoção realizada; ausência de referências não foi tratada como prova de inutilidade.
+      - id: consolidar
+        role: coordenador
+        who: lead
+        readOnly: true
+        does: Conferir evidências, consolidar os três relatórios, registrar resultados no Alethe e apresentar prioridades e proposta de limpeza para aprovação.
+        gate: Três resultados contabilizados, lacunas explícitas e nenhuma correção ou exclusão sem autorização.

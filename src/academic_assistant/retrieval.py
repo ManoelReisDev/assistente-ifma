@@ -338,14 +338,14 @@ def retrieve_evidence(
     ]
     seen = {document.metadata["chunk_id"] for document in primary_documents}
     for document in neighbors:
+        if len(ordered) >= settings.retrieval_max_chunks:
+            break
         _validate_document(document)
         chunk_id = document.metadata["chunk_id"]
         if chunk_id in seen:
             continue
         ordered.append((document, False, None))
         seen.add(chunk_id)
-        if len(ordered) >= settings.retrieval_max_chunks:
-            break
 
     evidences = tuple(
         RetrievedEvidence(

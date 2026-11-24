@@ -124,6 +124,12 @@ def load_corpus_selection(settings: Settings) -> dict[str, dict[str, Any]]:
     for document_id, item in selected.items():
         if not isinstance(item.get("document_hash"), str) or not item["document_hash"]:
             raise IndexingError(f"Documento {document_id} sem hash válido no inventário.")
+        for field in ("campus", "modality"):
+            value = item.get(field)
+            if value is not None and not isinstance(value, str):
+                raise IndexingError(
+                    f"Documento {document_id}: {field} deve ser texto ou null no inventário."
+                )
     return selected
 
 

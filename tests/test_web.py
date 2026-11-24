@@ -170,6 +170,20 @@ def test_missing_inventory_returns_actionable_error(tmp_path):
     assert str(tmp_path) not in response.text
 
 
+@pytest.mark.parametrize("field", ["campus", "modality"])
+def test_context_rejects_invalid_inventory_scope(settings, field):
+    corpus = json.loads(settings.corpus_file.read_text())
+    corpus["documents"][0][field] = ["valor fictício inválido"]
+    settings.corpus_file.write_text(json.dumps(corpus))
+
+    with TestClient(create_app(settings)) as client:
+        response = client.get("/api/context")
+
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "corpus_unavailable"
+    assert str(settings.corpus_file) not in response.text
+
+
 def test_api_runs_real_query_pipeline_offline(tmp_path):
     # Reutiliza o índice sintético já empregado nos testes do núcleo.
     from test_query import DeterministicEmbeddings, FakeModel, make_persisted_index

@@ -77,7 +77,7 @@ h1 { font-size: clamp(34px, 3.9vw, 55px); font-weight: 600; letter-spacing: -2.2
 .composer { padding: 15px 16px 12px; background: white; border: 1px solid #bdcfc1; border-radius: var(--radius); box-shadow: 0 3px 10px #17381e04; }
 .composer:focus-within { border-color: var(--green); }
 textarea { background: transparent; border: 0; resize: vertical; color: var(--ink); font-size: 14px; line-height: 1.7; width: 100%; min-height: 54px; max-height: 240px; padding: 0; }
-textarea::placeholder { color: #78817a; }
+textarea::placeholder { color: #626d66; opacity: 1; }
 textarea:focus-visible { outline-offset: 3px; outline-width: 2px; }
 .composer-bottom { margin-top: 9px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .composer-bottom > span { color: var(--muted); font-size: 10px; }
